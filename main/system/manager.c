@@ -71,6 +71,9 @@ static uint8_t sense_list[] = {
     SENSE_P1_PIN, SENSE_P2_PIN, SENSE_P3_PIN, SENSE_P4_PIN
 };
 #endif
+#ifdef CONFIG_IDF_TARGET_ESP32
+static uint16_t port_state = 0;
+#endif
 static uint8_t led_list[] = {
     LED_P1_PIN, LED_P2_PIN, LED_P3_PIN, LED_P4_PIN
 };
@@ -78,7 +81,6 @@ static uint8_t current_pulse_led = LED_P1_PIN;
 static uint8_t err_led_pin;
 static uint8_t power_off_pin = POWER_OFF_PIN;
 static uint8_t led_init_cnt = 1;
-static uint16_t port_state = 0;
 static RingbufHandle_t cmd_q_hdl = NULL;
 #ifdef CONFIG_IDF_TARGET_ESP32
 static uint32_t chip_package = EFUSE_RD_CHIP_VER_PKG_ESP32D0WDQ6;
@@ -275,7 +277,9 @@ static void power_on_hdl(void) {
 }
 
 static void wired_port_hdl(void) {
+#ifdef CONFIG_IDF_TARGET_ESP32
     uint32_t update = 0;
+#endif
     uint16_t port_mask = 0;
     uint8_t err_led_set = 0;
 
@@ -343,6 +347,7 @@ static void wired_port_hdl(void) {
         }
 #endif
     }
+#ifdef CONFIG_IDF_TARGET_ESP32
     if (hw_config.hotplug) {
         if (port_state != port_mask) {
             update++;
@@ -361,6 +366,7 @@ static void wired_port_hdl(void) {
             set_sense_out(SENSE_P4_PIN, 1);
         }
     }
+#endif
 }
 
 static void boot_btn_hdl(void) {
@@ -555,6 +561,7 @@ static void sys_mgr_deep_sleep(void) {
     esp_deep_sleep_start();
 }
 
+#ifdef CONFIG_IDF_TARGET_ESP32
 static void IRAM_ATTR sys_mgr_wired_reinit_task(void) {
     for (uint32_t i = 0; i < WIRED_MAX_DEV; i++) {
         adapter_init_buffer(i);
@@ -564,11 +571,14 @@ static void IRAM_ATTR sys_mgr_wired_reinit_task(void) {
         wired_bare_init(chip_package);
     }
 }
+#endif
 
 static void sys_mgr_wired_reset(void) {
+#ifdef CONFIG_IDF_TARGET_ESP32
     init_app_cpu_baremetal();
     start_app_cpu(sys_mgr_wired_reinit_task);
     port_state = 0;
+#endif
 }
 
 void sys_mgr_cmd(uint8_t cmd) {
