@@ -28,6 +28,10 @@
 #include "bare_metal_app_cpu.h"
 #include "manager.h"
 
+#ifndef LEDC_HIGH_SPEED_MODE
+#define LEDC_HIGH_SPEED_MODE LEDC_LOW_SPEED_MODE
+#endif
+
 #define BOOT_BTN_PIN 0
 
 #define RESET_PIN 14

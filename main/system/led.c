@@ -12,6 +12,10 @@
 #include "adapter/config.h"
 #include "led.h"
 
+#ifndef LEDC_HIGH_SPEED_MODE
+#define LEDC_HIGH_SPEED_MODE LEDC_LOW_SPEED_MODE
+#endif
+
 #ifdef CONFIG_BLUERETRO_SYSTEM_SEA_BOARD
 #define ERR_LED_PIN 32
 #else
