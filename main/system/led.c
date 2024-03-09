@@ -65,10 +65,12 @@ void err_led_init(uint32_t package) {
         .timer_sel  = LEDC_TIMER_0,
     };
 
+#ifdef CONFIG_IDF_TARGET_ESP32
     if (package == EFUSE_RD_CHIP_VER_PKG_ESP32PICOV302) {
         ledc_channel.gpio_num = PICO_ERR_LED_PIN;
         err_led_pin = PICO_ERR_LED_PIN;
     }
+#endif
 
     ledc_timer_config(&ledc_timer);
     ledc_channel_config(&ledc_channel);

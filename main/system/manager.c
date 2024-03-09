@@ -80,7 +80,11 @@ static uint8_t power_off_pin = POWER_OFF_PIN;
 static uint8_t led_init_cnt = 1;
 static uint16_t port_state = 0;
 static RingbufHandle_t cmd_q_hdl = NULL;
+#ifdef CONFIG_IDF_TARGET_ESP32
 static uint32_t chip_package = EFUSE_RD_CHIP_VER_PKG_ESP32D0WDQ6;
+#else
+static uint32_t chip_package = 0;
+#endif
 static bool factory_reset = false;
 
 static int32_t sys_mgr_get_power(void);
