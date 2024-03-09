@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2019-2020, Jacques Gagnon
+ * Copyright (c) 2019-2024, Jacques Gagnon
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include "adapter/adapter.h"
-#include "system/gpio.h"
+#include "driver/gpio.h"
 #include "zephyr/types.h"
 #include "tools/util.h"
 
@@ -26,7 +26,7 @@ void parallel_io_init(void)
 
     for (uint32_t i = 0; i < ARRAY_SIZE(output_list); i++) {
         io_conf.pin_bit_mask = 1ULL << output_list[i];
-        gpio_config_iram(&io_conf);
-        gpio_set_level_iram(output_list[i], 1);
+        gpio_config(&io_conf);
+        gpio_set_level(output_list[i], 1);
     }
 }
