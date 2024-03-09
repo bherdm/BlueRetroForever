@@ -10,7 +10,6 @@
 #include <xtensa/hal.h>
 #include <esp_heap_caps.h>
 #include <esp_timer.h>
-#include <esp32/rom/ets_sys.h>
 #include "sdkconfig.h"
 #include "queue_bss.h"
 #include "zephyr/types.h"
@@ -538,7 +537,7 @@ void adapter_init(void) {
 
     wired_adapter.input_q_hdl = queue_bss_init(16, sizeof(struct raw_fb));
     if (wired_adapter.input_q_hdl == NULL) {
-        ets_printf("# %s: Failed to create fb queue\n", __FUNCTION__);
+        printf("# %s: Failed to create fb queue\n", __FUNCTION__);
     }
 }
 
