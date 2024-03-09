@@ -8,7 +8,6 @@
 #include <freertos/task.h>
 #include <nvs_flash.h>
 #include <esp_ota_ops.h>
-#include <esp32/rom/ets_sys.h>
 #include <soc/efuse_reg.h>
 #include <esp_efuse.h>
 #include "system/bare_metal_app_cpu.h"
@@ -29,9 +28,16 @@
 #include "tests/coverage.h"
 #include "sdkconfig.h"
 
-static uint32_t chip_package = EFUSE_RD_CHIP_VER_PKG_ESP32D0WDQ6;
+#if CONFIG_IDF_TARGET_ESP32
+#include "esp32/rom/ets_sys.h"
+#elif CONFIG_IDF_TARGET_ESP32S2
+#include "esp32s2/rom/ets_sys.h"
+#endif
+
+static uint32_t chip_package = 0;
 
 static void wired_init_task(void) {
+#ifndef CONFIG_IDF_TARGET_ESP32S2
 #ifdef CONFIG_BLUERETRO_SYSTEM_UNIVERSAL
     detect_init();
     while (wired_adapter.system_id <= WIRED_AUTO) {
@@ -46,14 +52,12 @@ static void wired_init_task(void) {
     if (wired_adapter.system_id >= 0) {
         ets_printf("# Detected system : %d: %s\n", wired_adapter.system_id, wired_get_sys_name());
     }
-#else
-    wired_adapter.system_id = HARDCODED_SYS;
-    ets_printf("# Hardcoded system : %d: %s\n", wired_adapter.system_id, wired_get_sys_name());
 #endif
 
     while (config.magic != CONFIG_MAGIC) {
         delay_us(1000);
     }
+#endif /* CONFIG_IDF_TARGET_ESP32S2 */
 
     if (config.global_cfg.system_cfg < WIRED_MAX && config.global_cfg.system_cfg != WIRED_AUTO) {
         wired_adapter.system_id = config.global_cfg.system_cfg;
@@ -72,9 +76,11 @@ static void wired_init_task(void) {
     memcpy(fb_data.data, sysname, fb_data.header.data_len);
     adapter_q_fb(&fb_data);
 
+#ifndef CONFIG_IDF_TARGET_ESP32S2
     if (wired_adapter.system_id < WIRED_MAX) {
         wired_bare_init(chip_package);
     }
+#endif
 }
 
 static void wl_init_task(void *arg) {
@@ -92,7 +98,9 @@ static void wl_init_task(void *arg) {
 
     err_led_init(chip_package);
 
+#ifdef CONFIG_IDF_TARGET_ESP32
     core0_stall_init();
+#endif
 
 #ifndef CONFIG_BLUERETRO_QEMU
     if (fs_init()) {
@@ -122,11 +130,16 @@ static void wl_init_task(void *arg) {
 #endif
 
     if (wired_adapter.system_id < WIRED_MAX) {
+#ifdef CONFIG_IDF_TARGET_ESP32S2
+        wired_init_task();
+#endif
         wired_rtos_init();
     }
 
 #ifndef CONFIG_BLUERETRO_QEMU
+#ifndef CONFIG_IDF_TARGET_ESP32S2
     mc_init();
+#endif
 
     sys_mgr_init(chip_package);
 #endif
@@ -152,6 +165,12 @@ void app_main()
 {
     adapter_init();
 
+#ifndef CONFIG_BLUERETRO_SYSTEM_UNIVERSAL
+    wired_adapter.system_id = HARDCODED_SYS;
+    printf("# Hardcoded system : %ld: %s\n", wired_adapter.system_id, wired_get_sys_name());
+#endif
+#ifndef CONFIG_IDF_TARGET_ESP32S2
     start_app_cpu(wired_init_task);
+#endif
     xTaskCreatePinnedToCore(wl_init_task, "wl_init_task", 2560, NULL, 10, NULL, 0);
 }
