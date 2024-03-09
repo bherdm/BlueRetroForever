@@ -587,7 +587,7 @@ void sys_mgr_init(uint32_t package) {
     err_led_pin = err_led_get_pin();
 
     ledc_timer_config_t ledc_timer = {
-        .duty_resolution = LEDC_TIMER_20_BIT,
+        .duty_resolution = LEDC_TIMER_14_BIT,
         .freq_hz = 2,
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .timer_num = LEDC_TIMER_1,
