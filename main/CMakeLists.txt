@@ -48,43 +48,53 @@ set(cov_srcs
     "bluetooth/hidp/ps.c"
     "bluetooth/hidp/sw.c"
     "system/manager.c"
-    "tools/devcrypto.c"
     "tools/ps1_gameid.c"
 )
+
+if(CONFIG_IDF_TARGET_ESP32)
+    list(APPEND cov_srcs
+        "tools/devcrypto.c"
+    )
+endif()
 
 set(srcs
     "adapter/adapter_debug.c"
     "bluetooth/debug.c"
-    "system/delay.c"
     "system/fpga_config.c"
     "system/fs.c"
-    "system/gpio.c"
-    "system/intr.c"
     "system/led.c"
-    "system/bare_metal_app_cpu.c"
-    "system/core0_stall.c"
-    "system/core0_stall_highint_hdl.S"
-    "system/startup.c"
     "tools/stats.c"
-    "wired/detect.c"
-    "wired/wired_bare.c"
     "wired/wired_rtos.c"
-    "wired/npiso_io.c"
-    "wired/cdi_uart.c"
-    "wired/pce_io.c"
-    "wired/sega_io.c"
-    "wired/nsi.c"
-    "wired/maple.c"
-    "wired/jvs_uart.c"
     "wired/parallel.c"
-    "wired/pcfx_spi.c"
-    "wired/ps_spi.c"
-    "wired/real_spi.c"
-    "wired/jag_io.c"
     "wired/sea_io.c"
-    "wired/wii_i2c.c"
-    "zephyr/atomic.S"
 )
+
+if(CONFIG_IDF_TARGET_ESP32)
+    list(APPEND srcs
+        "wired/detect.c"
+        "wired/wired_bare.c"
+        "wired/npiso_io.c"
+        "wired/cdi_uart.c"
+        "wired/pce_io.c"
+        "wired/sega_io.c"
+        "wired/nsi.c"
+        "wired/maple.c"
+        "wired/jvs_uart.c"
+        "wired/pcfx_spi.c"
+        "wired/ps_spi.c"
+        "wired/real_spi.c"
+        "wired/jag_io.c"
+        "wired/wii_i2c.c"
+        "system/bare_metal_app_cpu.c"
+        "system/core0_stall.c"
+        "system/core0_stall_highint_hdl.S"
+        "system/delay.c"
+        "system/gpio.c"
+        "system/intr.c"
+        "system/startup.c"
+        "zephyr/atomic.S"
+    )
+endif()
 
 if(CONFIG_BLUERETRO_WS_CMDS)
     list(APPEND srcs
@@ -121,7 +131,13 @@ if(CONFIG_BLUERETRO_COVERAGE)
 endif()
 
 idf_build_set_property(COMPILE_DEFINITIONS "-DBLUERETRO" APPEND)
-idf_build_set_property(COMPILE_DEFINITIONS "-DXT_INTEXC_HOOKS" APPEND)
 
-target_link_libraries(${COMPONENT_TARGET} "-u ld_include_my_startup_file")
-target_link_libraries(${COMPONENT_TARGET} "-u ld_include_core0_stall_highint_hdl")
+if(CONFIG_IDF_TARGET_ESP32)
+    idf_build_set_property(COMPILE_DEFINITIONS "-DXT_INTEXC_HOOKS" APPEND)
+    target_link_libraries(${COMPONENT_TARGET} "-u ld_include_my_startup_file")
+    target_link_libraries(${COMPONENT_TARGET} "-u ld_include_core0_stall_highint_hdl")
+endif()
+
+if(CONFIG_IDF_TARGET_ESP32S2)
+    idf_build_set_property(COMPILE_DEFINITIONS "-DCONFIG_ATOMIC_OPERATIONS_BUILTIN" APPEND)
+endif()
