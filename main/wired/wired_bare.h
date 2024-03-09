@@ -54,6 +54,8 @@
 #define HARDCODED_SYS SEA_BOARD
 #elif defined(CONFIG_BLUERETRO_SYSTEM_SPI)
 #define HARDCODED_SYS SPI
+#elif defined(CONFIG_BLUERETRO_SYSTEM_XBOX)
+#define HARDCODED_SYS XBOX
 #endif
 
 struct spi_cfg {

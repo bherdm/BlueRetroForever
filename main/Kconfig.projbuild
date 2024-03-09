@@ -6,6 +6,11 @@ menu "BlueRetro"
         help
             Select this to enable HW2 features like port detection.
 
+    config BLUERETRO_BT_EXTERNAL_H4
+        bool "Use external BT radio"
+        help
+            Select this to use an external BT radio thought H4 UART interface.
+
     choice
         prompt "Select universal or specific system"
         default BLUERETRO_SYSTEM_UNIVERSAL
@@ -127,6 +132,11 @@ menu "BlueRetro"
             bool "SEA Board"
             help
                 Select this to support only SEA Board.
+
+        config BLUERETRO_SYSTEM_XBOX
+            bool "XBOX"
+            help
+                Select this to support only XBOX.
 
     endchoice
 
