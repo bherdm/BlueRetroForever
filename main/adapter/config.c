@@ -18,7 +18,11 @@
 
 struct config config;
 struct hw_config hw_config = {
+#ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
+    .external_adapter = 1,
+#else
     .external_adapter = 0,
+#endif
     .hotplug = 0,
     .hw1_ports_led_pins = {2, 4, 12, 15},
     .led_flash_duty_cycle = 0x2000,
