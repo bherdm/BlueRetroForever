@@ -57,6 +57,12 @@ if(CONFIG_IDF_TARGET_ESP32)
     )
 endif()
 
+if(CONFIG_BLUERETRO_BT_EXTERNAL_H4)
+    list(APPEND cov_srcs
+        "bluetooth/hci_uart.c"
+    )
+endif()
+
 set(srcs
     "adapter/adapter_debug.c"
     "bluetooth/debug.c"
@@ -109,7 +115,6 @@ if(CONFIG_BLUERETRO_COVERAGE)
         "tests/coverage.c"
     )
 endif()
-
 idf_component_register(
     SRCS "${srcs}" "${cov_srcs}"
     PRIV_INCLUDE_DIRS "."
