@@ -24,6 +24,7 @@
 #include "parallel_2p.h"
 #include "sea.h"
 #include "wii.h"
+#include "xbox.h"
 #include "wired.h"
 
 static from_generic_t from_generic_func[WIRED_MAX] = {
@@ -51,6 +52,8 @@ static from_generic_t from_generic_func[WIRED_MAX] = {
     para_1p_from_generic, /* PARALLEL_1P_OD */
     para_2p_from_generic, /* PARALLEL_2P_OD */
     sea_from_generic, /* SEA_BOARD */
+    NULL, /* SPI */
+    xbox_from_generic, /* XBOX */
 };
 
 static fb_to_generic_t fb_to_generic_func[WIRED_MAX] = {
@@ -78,6 +81,8 @@ static fb_to_generic_t fb_to_generic_func[WIRED_MAX] = {
     NULL, /* PARALLEL_1P_OD */
     NULL, /* PARALLEL_2P_OD */
     NULL, /* SEA_BOARD */
+    NULL, /* SPI */
+    xbox_fb_to_generic, /* XBOX */
 };
 
 static meta_init_t meta_init_func[WIRED_MAX] = {
@@ -105,6 +110,8 @@ static meta_init_t meta_init_func[WIRED_MAX] = {
     para_1p_meta_init, /* PARALLEL_1P_OD */
     para_2p_meta_init, /* PARALLEL_2P_OD */
     sea_meta_init, /* SEA_BOARD */
+    NULL, /* SPI */
+    xbox_meta_init, /* XBOX */
 };
 
 static DRAM_ATTR buffer_init_t buffer_init_func[WIRED_MAX] = {
@@ -132,6 +139,8 @@ static DRAM_ATTR buffer_init_t buffer_init_func[WIRED_MAX] = {
     para_1p_init_buffer, /* PARALLEL_1P_OD */
     para_2p_init_buffer, /* PARALLEL_2P_OD */
     sea_init_buffer, /* SEA_BOARD */
+    NULL, /* SPI */
+    xbox_init_buffer, /* XBOX */
 };
 
 int32_t wired_meta_init(struct wired_ctrl *ctrl_data) {
