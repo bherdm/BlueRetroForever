@@ -64,6 +64,7 @@ set(srcs
     "system/fs.c"
     "system/led.c"
     "tools/stats.c"
+    "wired/wired_common.c"
     "wired/wired_rtos.c"
     "wired/parallel.c"
     "wired/sea_io.c"

@@ -20,6 +20,7 @@
 #include "adapter/config.h"
 #include "bluetooth/host.h"
 #include "wired/detect.h"
+#include "wired/wired_common.h"
 #include "wired/wired_bare.h"
 #include "wired/wired_rtos.h"
 #include "adapter/memory_card.h"

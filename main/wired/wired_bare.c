@@ -17,7 +17,6 @@
 #include "real_spi.h"
 #include "jag_io.h"
 #include "wii_i2c.h"
-#include "adapter/adapter.h"
 #include "wired_bare.h"
 
 #define SPI_LL_RST_MASK (SPI_OUT_RST | SPI_IN_RST | SPI_AHBM_RST | SPI_AHBM_FIFO_RST)
@@ -25,33 +24,6 @@
 
 typedef void (*wired_init_t)(uint32_t package);
 typedef void (*wired_port_cfg_t)(uint16_t mask);
-
-static const char *sys_name[WIRED_MAX] = {
-    "AUTO",
-    "PARALLEL_1P_PP",
-    "PARALLEL_2P_PP",
-    "NES",
-    "PCE",
-    "MD-GENESIS",
-    "SNES",
-    "CD-i",
-    "CD32",
-    "3DO",
-    "JAGUAR",
-    "PSX",
-    "SATURN",
-    "PC-FX",
-    "JVS",
-    "N64",
-    "DC",
-    "PS2",
-    "GC",
-    "Wii-EXT",
-    "VB",
-    "PARALLEL_1P_OD",
-    "PARALLEL_2P_OD",
-    "SEA Board",
-};
 
 static const wired_init_t wired_init[WIRED_MAX] = {
     NULL, /* WIRED_AUTO */
@@ -117,10 +89,6 @@ void wired_bare_port_cfg(uint16_t mask) {
     if (wired_port_cfg[wired_adapter.system_id]) {
         wired_port_cfg[wired_adapter.system_id](mask);
     }
-}
-
-const char *wired_get_sys_name(void) {
-    return sys_name[wired_adapter.system_id];
 }
 
 void spi_init(struct spi_cfg *cfg) {
