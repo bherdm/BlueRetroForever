@@ -8,6 +8,7 @@
 #include "tools/util.h"
 #include "adapter/config.h"
 #include "adapter/wired/wired.h"
+#include "wired/xbox_usb.h"
 #include "xbox.h"
 
 #define XBOX_JOYSTICK_AXES_CNT 4
@@ -163,6 +164,9 @@ static void xbox_ctrl_from_generic(struct wired_ctrl *ctrl_data, struct wired_da
         wired_data->cnt_mask[btn_id] = ctrl_data->axes[i].cnt_mask;
     }
 
+#ifdef CONFIG_IDF_TARGET_ESP32S2
+    xbox_send_report();
+#endif
 
 #ifdef CONFIG_BLUERETRO_RAW_OUTPUT
     printf("{\"log_type\": \"wired_output\", \"axes\": [%d, %d, %d, %d, %d, %d, %d, %d, %d, %d], \"btns\": %d}\n",

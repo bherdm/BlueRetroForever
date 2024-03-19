@@ -67,4 +67,5 @@ __pycache__/
 .vscode/settings.json
 trace/
 **/.DS_Store
-
+managed_components/
+dependencies.lock

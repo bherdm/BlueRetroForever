@@ -1,11 +1,12 @@
 /*
- * Copyright (c) 2021-2022, Jacques Gagnon
+ * Copyright (c) 2021-2024, Jacques Gagnon
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include <stddef.h>
 #include "parallel.h"
 #include "sea_io.h"
+#include "xbox_usb.h"
 #include "adapter/adapter.h"
 #include "wired_rtos.h"
 
@@ -36,6 +37,8 @@ static const wired_init_t wired_init[WIRED_MAX] = {
     parallel_io_init, /* PARALLEL_1P_OD */
     parallel_io_init, /* PARALLEL_2P_OD */
     sea_init, /* SEA_BOARD */
+    NULL, /* SPI */
+    xbox_init, /* XBOX */
 };
 
 void wired_rtos_init(void) {

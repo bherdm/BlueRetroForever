@@ -1,3 +1,9 @@
 [submodule "components/queue_bss/liblfds"]
 	path = components/queue_bss/liblfds
 	url = https://github.com/darthcloud/liblfds7.1.1.git
+[submodule "components/tinyusb"]
+	path = components/tinyusb
+	url = https://github.com/darthcloud/tinyusb.git
+[submodule "components/esp_tinyusb"]
+	path = components/esp_tinyusb
+	url = https://github.com/darthcloud/esp_tinyusb.git
