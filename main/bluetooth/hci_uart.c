@@ -12,10 +12,10 @@
 #include "host.h"
 #include "zephyr/hci.h"
 
-#define HCI_UART_TX_PIN 35
-#define HCI_UART_RX_PIN 44
-#define HCI_UART_RTS_PIN 36
-#define HCI_UART_CTS_PIN 0
+#define HCI_UART_TX_PIN 21
+#define HCI_UART_RX_PIN 34
+#define HCI_UART_RTS_PIN 33
+#define HCI_UART_CTS_PIN 39
 
 static hci_rx_cb_t hci_rx_cb;
 static int hci_uart_port;
