@@ -17,9 +17,11 @@
 
 #define XBOX_REPORT_IN_SIZE 20
 #define XBOX_REPORT_OUT_SIZE 6
+#define XBOX_REPORT_MAX_SIZE 64
 
 static uint8_t ep_out = 0;
 static uint8_t ep_in = 0;
+static uint8_t ep_out_buf[XBOX_REPORT_MAX_SIZE];
 
 static char serial[13] = {0};
 
@@ -30,7 +32,7 @@ static const tusb_desc_device_t device_desc = {
     .bDeviceClass = 0,
     .bDeviceSubClass = 0,
     .bDeviceProtocol = 0,
-    .bMaxPacketSize0 = 64,
+    .bMaxPacketSize0 = XBOX_REPORT_MAX_SIZE,
     .idVendor = 0x303a,
     .idProduct = 0x81eb,
     .bcdDevice = 0x0100,
@@ -97,8 +99,7 @@ static bool xboxd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_re
     if (stage == CONTROL_STAGE_SETUP) {
         switch (request->bmRequestType) {
             case 0x21:
-                uint8_t data[] = {0, 6, 0, 0, 0, 0};
-                tud_control_xfer(rhport, request, data, request->wLength);
+                tud_control_xfer(rhport, request, ep_out_buf, request->wLength);
                 break;
             case 0xa1:
             default:
@@ -106,10 +107,32 @@ static bool xboxd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_re
                 break;
         }
     }
+    else if (stage == CONTROL_STAGE_ACK) {
+        switch (request->bmRequestType) {
+            case 0x21:
+            {
+                // printf("%s: Got rumble fb: %02X%02X%02X%02X\n", __FUNCTION__,
+                //     ep_out_buf[2], ep_out_buf[3], ep_out_buf[4], ep_out_buf[5]);
+                struct raw_fb fb_data = {0};
+                fb_data.data[0] = ep_out_buf[3];
+                fb_data.data[1] = ep_out_buf[5];
+                fb_data.header.wired_id = 0;
+                fb_data.header.type = FB_TYPE_RUMBLE;
+                fb_data.header.data_len = 2;
+                adapter_q_fb(&fb_data);
+                break;
+            }
+        }
+    }
     return true;
 }
 
 static bool xboxd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
+    if (ep_addr == ep_out) {
+        printf("%s: Got rumble fb: %02X%02X%02X%02X\n", __FUNCTION__,
+                    ep_out_buf[2], ep_out_buf[3], ep_out_buf[4], ep_out_buf[5]);
+    }
+
     return true;
 }
 
