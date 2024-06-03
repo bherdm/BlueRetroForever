@@ -348,7 +348,9 @@ void jag_from_generic(int32_t dev_mode, struct wired_ctrl *ctrl_data, struct wir
             jag_ctrl_from_generic(ctrl_data, wired_data);
             break;
     }
+#ifdef CONFIG_BLUERETRO_SYSTEM_JAGUAR
     jag_io_force_update();
+#endif
 }
 
 void IRAM_ATTR jag_gen_turbo_mask(struct wired_data *wired_data) {
