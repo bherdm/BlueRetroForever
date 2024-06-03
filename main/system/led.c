@@ -20,7 +20,7 @@
 #define ERR_LED_PIN 32
 #else
 #ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
-#define ERR_LED_PIN 40
+#define ERR_LED_PIN 33
 #else
 #define ERR_LED_PIN 17
 #endif

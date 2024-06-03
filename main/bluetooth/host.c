@@ -42,7 +42,7 @@
 #define BT_RX 1
 #define BT_FB_TASK_DELAY_CNT 30
 
-#define PICO_EN_PIN 7
+#define PICO_EN_PIN 15
 
 enum {
     /* BT CTRL flags */
