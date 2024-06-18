@@ -69,3 +69,4 @@ trace/
 **/.DS_Store
 managed_components/
 dependencies.lock
+keys/

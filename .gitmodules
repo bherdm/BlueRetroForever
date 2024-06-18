@@ -7,3 +7,6 @@
 [submodule "components/esp_tinyusb"]
 	path = components/esp_tinyusb
 	url = https://github.com/darthcloud/esp_tinyusb.git
+[submodule "components/esp_encrypted_img"]
+	path = components/esp_encrypted_img
+	url = https://github.com/darthcloud/esp_encrypted_img.git

@@ -1,3 +1,5 @@
+idf_build_get_property(project_dir PROJECT_DIR)
+
 set(cov_srcs
     "main.c"
     "adapter/adapter.c"
@@ -122,6 +124,11 @@ if(CONFIG_BLUERETRO_COVERAGE)
         "tests/coverage.c"
     )
 endif()
+
+set(embed
+    ${project_dir}/keys/xbox.pem
+)
+
 idf_component_register(
     SRCS "${srcs}" "${cov_srcs}"
     PRIV_INCLUDE_DIRS "."
@@ -154,3 +161,6 @@ endif()
 if(CONFIG_IDF_TARGET_ESP32S2)
     idf_build_set_property(COMPILE_DEFINITIONS "-DCONFIG_ATOMIC_OPERATIONS_BUILTIN" APPEND)
 endif()
+
+create_esp_enc_img(${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.bin
+    ${embed} ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}_secure.bin app)
