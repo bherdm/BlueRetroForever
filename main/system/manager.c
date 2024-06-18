@@ -32,7 +32,11 @@
 #define LEDC_HIGH_SPEED_MODE LEDC_LOW_SPEED_MODE
 #endif
 
+#ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
+#define BOOT_BTN_PIN 34
+#else
 #define BOOT_BTN_PIN 0
+#endif
 
 #define RESET_PIN 14
 
