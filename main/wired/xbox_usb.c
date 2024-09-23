@@ -22,6 +22,7 @@
 static uint8_t ep_out = 0;
 static uint8_t ep_in = 0;
 static uint8_t ep_out_buf[XBOX_REPORT_MAX_SIZE];
+static uint8_t ep_in_buf[XBOX_REPORT_MAX_SIZE] = {0};
 
 static char serial[13] = {0};
 
@@ -198,12 +199,27 @@ void xbox_init(void)
     snprintf(serial, sizeof(serial), "%02X%02X%02X%02X%02X%02X",
         mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
 
+    ep_in_buf[1] = XBOX_REPORT_IN_SIZE;
+
     tinyusb_driver_install(&tusb_cfg);
 }
 
 void xbox_send_report(void) {
     if (tud_ready() && !usbd_edpt_busy(0, ep_in)) {
-        usbd_edpt_xfer(0, ep_in, wired_adapter.data[0].output, XBOX_REPORT_IN_SIZE);
+        /* Buttons */
+        ep_in_buf[2] = wired_adapter.data[0].output[2]
+            & wired_adapter.data[0].output_mask[2];
+        /* Pressures */
+        *(uint32_t *)&ep_in_buf[4] = wired_adapter.data[0].output32[1]
+            & wired_adapter.data[0].output_mask32[1];
+        *(uint32_t *)&ep_in_buf[8] = wired_adapter.data[0].output32[2]
+            & wired_adapter.data[0].output_mask32[2];
+        /* Sticks */
+        *(uint32_t *)&ep_in_buf[12] = wired_adapter.data[0].output32[3]
+            & wired_adapter.data[0].output_mask32[3];
+        *(uint32_t *)&ep_in_buf[16] = wired_adapter.data[0].output32[4]
+            & wired_adapter.data[0].output_mask32[4];
+        usbd_edpt_xfer(0, ep_in, ep_in_buf, XBOX_REPORT_IN_SIZE);
     }
 }
 
