@@ -135,6 +135,7 @@ enum {
     PAD_RS,
     PAD_RT,
     PAD_RJ,
+    PAD_MAX,
 };
 
 /* Stage the Mouse & KB mapping to be a good default when used as a joystick */

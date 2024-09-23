@@ -225,30 +225,62 @@ static void config_init_struct(struct config *data) {
 
     for (uint32_t i = 0; i < WIRED_MAX_DEV; i++) {
         data->out_cfg[i].dev_mode = DEV_PAD;
+#ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
+        data->out_cfg[i].acc_mode = ACC_RUMBLE;
+#else
         data->out_cfg[i].acc_mode = ACC_NONE;
+#endif
         data->in_cfg[i].bt_dev_id = 0x00; /* Not used placeholder */
         data->in_cfg[i].bt_subdev_id = 0x00;  /* Not used placeholder */
+#ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
+        data->in_cfg[i].map_size = PAD_MAX + BR_COMBO_CNT;
+#else
         data->in_cfg[i].map_size = KBM_MAX + BR_COMBO_CNT;
-        uint32_t j = 0;
+#endif
+        uint32_t idx = 0;
+#ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
+        for (uint32_t j = 0; j < PAD_MAX; j++) {
+            switch (j) {
+                /* Remove unused buttons for XBOX */
+                case PAD_RD_LEFT:
+                case PAD_RD_RIGHT:
+                case PAD_RD_DOWN:
+                case PAD_RD_UP:
+                case PAD_LT:
+                case PAD_RT:
+                    data->in_cfg[i].map_size--;
+                    continue;
+            }
+#else
         for (; j < KBM_MAX; j++) {
-            data->in_cfg[i].map_cfg[j].src_btn = j;
-            data->in_cfg[i].map_cfg[j].dst_btn = j;
-            data->in_cfg[i].map_cfg[j].dst_id = i;
-            data->in_cfg[i].map_cfg[j].perc_max = 100;
-            data->in_cfg[i].map_cfg[j].perc_threshold = 50;
-            data->in_cfg[i].map_cfg[j].perc_deadzone = 135;
-            data->in_cfg[i].map_cfg[j].turbo = 0;
-            data->in_cfg[i].map_cfg[j].algo = 0;
+#endif
+            data->in_cfg[i].map_cfg[idx].src_btn = j;
+            data->in_cfg[i].map_cfg[idx].dst_btn = j;
+#ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
+            data->in_cfg[i].map_cfg[idx].dst_id = 0;
+#else
+            data->in_cfg[i].map_cfg[idx].dst_id = i;
+#endif
+            data->in_cfg[i].map_cfg[idx].perc_max = 100;
+            data->in_cfg[i].map_cfg[idx].perc_threshold = 50;
+            data->in_cfg[i].map_cfg[idx].perc_deadzone = 135;
+            data->in_cfg[i].map_cfg[idx].turbo = 0;
+            data->in_cfg[i].map_cfg[idx].algo = 0;
+            idx++;
         }
-        for (uint32_t k = 0; k < BR_COMBO_CNT; j++, k++) {
-            data->in_cfg[i].map_cfg[j].src_btn = config_default_combo[k];
-            data->in_cfg[i].map_cfg[j].dst_btn = k + BR_COMBO_BASE_1;
-            data->in_cfg[i].map_cfg[j].dst_id = i;
-            data->in_cfg[i].map_cfg[j].perc_max = 100;
-            data->in_cfg[i].map_cfg[j].perc_threshold = 50;
-            data->in_cfg[i].map_cfg[j].perc_deadzone = 135;
-            data->in_cfg[i].map_cfg[j].turbo = 0;
-            data->in_cfg[i].map_cfg[j].algo = 0;
+        for (uint32_t k = 0; k < BR_COMBO_CNT; idx++, k++) {
+            data->in_cfg[i].map_cfg[idx].src_btn = config_default_combo[k];
+            data->in_cfg[i].map_cfg[idx].dst_btn = k + BR_COMBO_BASE_1;
+#ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
+            data->in_cfg[i].map_cfg[idx].dst_id = 0;
+#else
+            data->in_cfg[i].map_cfg[idx].dst_id = i;
+#endif
+            data->in_cfg[i].map_cfg[idx].perc_max = 100;
+            data->in_cfg[i].map_cfg[idx].perc_threshold = 50;
+            data->in_cfg[i].map_cfg[idx].perc_deadzone = 135;
+            data->in_cfg[i].map_cfg[idx].turbo = 0;
+            data->in_cfg[i].map_cfg[idx].algo = 0;
         }
     }
 }
@@ -312,7 +344,9 @@ static void config_init_nvs_patch(struct config *data) {
                 if (err == ESP_OK) {
                     for (uint32_t i = 0; i < WIRED_MAX_DEV; i++) {
                         memcpy(&data->in_cfg[i].map_cfg[index], &mapping, sizeof(struct map_cfg));
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
                         data->in_cfg[i].map_cfg[index].dst_id = i;
+#endif
                     }
                 }
             }
