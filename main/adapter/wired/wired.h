@@ -17,7 +17,9 @@ void wired_gen_turbo_mask_btns16_neg(struct wired_data *wired_data, uint16_t *bu
 void wired_gen_turbo_mask_btns32(struct wired_data *wired_data, uint32_t *buttons, const uint32_t (*btns_mask)[32],
                                 uint32_t bank_cnt);
 void wired_gen_turbo_mask_axes8(struct wired_data *wired_data, uint8_t *axes, uint32_t axes_cnt,
-                                const uint8_t axes_idx[6], const struct ctrl_meta *axes_meta);
+                                const uint8_t *axes_idx, const struct ctrl_meta *axes_meta);
+void wired_gen_turbo_mask_axes16(struct wired_data *wired_data, uint16_t *axes, uint32_t axes_cnt,
+                                const uint8_t *axes_idx, const struct ctrl_meta *axes_meta);
 
 #endif /* _WIRED_H_ */
 

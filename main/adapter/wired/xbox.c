@@ -236,5 +236,6 @@ void IRAM_ATTR xbox_gen_turbo_mask(struct wired_data *wired_data) {
 
     wired_gen_turbo_mask_axes8(wired_data, map_mask->axes, ADAPTER_PS2_MAX_AXES,
         xbox_axes_idx, xbox_axes_meta);
-    // TODO handle turbo for 16bit signed axes
+    wired_gen_turbo_mask_axes16(wired_data, map_mask->sticks,
+        XBOX_JOYSTICK_AXES_CNT, xbox_axes_idx, xbox_axes_meta);
 }
