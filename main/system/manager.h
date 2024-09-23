@@ -9,7 +9,8 @@
 #include <stdint.h>
 
 enum {
-    SYS_MGR_CMD_RST = 0,
+    SYS_MGR_CMD_NONE = -1,
+    SYS_MGR_CMD_RST,
     SYS_MGR_CMD_PWR_ON,
     SYS_MGR_CMD_PWR_OFF,
     SYS_MGR_CMD_INQ_TOOGLE,
@@ -19,7 +20,7 @@ enum {
     SYS_MGR_CMD_WIRED_RST,
 };
 
-void sys_mgr_cmd(uint8_t cmd);
+void sys_mgr_cmd(int8_t cmd);
 void sys_mgr_init(uint32_t package);
 
 #endif /* _SYS_MANAGER_H_ */

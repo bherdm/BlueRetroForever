@@ -23,7 +23,7 @@ typedef void (*config_change_t)(uint32_t index);
 
 struct macro {
     uint32_t macro;
-    uint8_t sys_mgr_cmd;
+    int8_t sys_mgr_cmd;
     uint32_t flag_mask;
     config_change_t cfg_func;
 };
@@ -57,7 +57,9 @@ static void check_macro(uint32_t index, int32_t value, struct macro *macro, atom
         if (macro->cfg_func) {
             macro->cfg_func(index);
         }
-        sys_mgr_cmd(macro->sys_mgr_cmd);
+        if (macro->sys_mgr_cmd > SYS_MGR_CMD_NONE) {
+            sys_mgr_cmd(macro->sys_mgr_cmd);
+        }
     }
 }
 

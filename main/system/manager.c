@@ -458,7 +458,7 @@ static void boot_btn_hdl(void) {
 
 static void sys_mgr_task(void *arg) {
     uint32_t cnt = 0;
-    uint8_t *cmd;
+    int8_t *cmd;
     size_t cmd_len;
 
     while (1) {
@@ -466,8 +466,8 @@ static void sys_mgr_task(void *arg) {
 
         /* Fetch system cmd to execute */
         if (cmd_q_hdl) {
-            cmd = (uint8_t *)xRingbufferReceive(cmd_q_hdl, &cmd_len, 0);
-            if (cmd) {
+            cmd = (int8_t *)xRingbufferReceive(cmd_q_hdl, &cmd_len, 0);
+            if (cmd && *cmd > SYS_MGR_CMD_NONE) {
                 if (sys_mgr_cmds[*cmd]) {
                     sys_mgr_cmds[*cmd]();
                 }
@@ -585,7 +585,7 @@ static void sys_mgr_wired_reset(void) {
 #endif
 }
 
-void sys_mgr_cmd(uint8_t cmd) {
+void sys_mgr_cmd(int8_t cmd) {
     if (cmd_q_hdl) {
         UBaseType_t ret = xRingbufferSend(cmd_q_hdl, &cmd, sizeof(cmd), portMAX_DELAY);
         if (ret != pdTRUE) {
