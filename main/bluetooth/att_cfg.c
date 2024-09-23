@@ -42,18 +42,49 @@
 #define CFG_CMD_OTA_START 0xA5
 #define CFG_CMD_OTA_ABORT 0xDE
 
+#ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
 enum {
-    GATT_GRP_HDL = 0x0001,
-    GATT_SRVC_CH_ATT_HDL,
-    GATT_SRVC_CH_CHRC_HDL,
-    GAP_GRP_HDL = 0x0014,
+    GAP_GRP_HDL = 0x0001,
+    FIRST_GAP_HDL = GAP_GRP_HDL,
+    FIRST_HDL = FIRST_GAP_HDL,
     GAP_DEV_NAME_ATT_HDL,
     GAP_DEV_NAME_CHRC_HDL,
     GAP_APP_ATT_HDL,
     GAP_APP_CHRC_HDL,
     GAP_PPCP_ATT_HDL,
     GAP_PPCP_CHRC_HDL,
+    LAST_GAP_HDL = GAP_PPCP_CHRC_HDL,
+    BR_GRP_HDL = 0x0010,
+    FIRST_BR_HDL = BR_GRP_HDL,
+    BR_IN_CFG_CTRL_ATT_HDL,
+    BR_IN_CFG_CTRL_CHRC_HDL,
+    BR_IN_CFG_DATA_ATT_HDL,
+    BR_IN_CFG_DATA_CHRC_HDL,
+    BR_CFG_CMD_ATT_HDL,
+    BR_CFG_CMD_CHRC_HDL,
+    LAST_BR_HDL = BR_CFG_CMD_CHRC_HDL,
+    LAST_HDL = LAST_BR_HDL,
+    MAX_HDL,
+};
+#else
+enum {
+    GATT_GRP_HDL = 0x0001,
+    GATT_FIRST_HDL = GATT_GRP_HDL,
+    FIRST_HDL = GATT_FIRST_HDL,
+    GATT_SRVC_CH_ATT_HDL,
+    GATT_SRVC_CH_CHRC_HDL,
+    LAST_GATT_HDL = GATT_SRVC_CH_CHRC_HDL,
+    GAP_GRP_HDL = 0x0014,
+    FIRST_GAP_HDL = GAP_GRP_HDL,
+    GAP_DEV_NAME_ATT_HDL,
+    GAP_DEV_NAME_CHRC_HDL,
+    GAP_APP_ATT_HDL,
+    GAP_APP_CHRC_HDL,
+    GAP_PPCP_ATT_HDL,
+    GAP_PPCP_CHRC_HDL,
+    LAST_GAP_HDL = GAP_PPCP_CHRC_HDL,
     BR_GRP_HDL = 0x0040,
+    FIRST_BR_HDL = BR_GRP_HDL,
     BR_GLBL_CFG_ATT_HDL,
     BR_GLBL_CFG_CHRC_HDL,
     BR_OUT_CFG_CTRL_ATT_HDL,
@@ -78,23 +109,28 @@ enum {
     BR_MC_DATA_CHRC_HDL,
     BR_BD_ADDR_ATT_HDL,
     BR_BD_ADDR_CHRC_HDL, /* Deprecated, use BR_CFG_CMD_CHRC_HDL */
-    LAST_HDL = BR_BD_ADDR_CHRC_HDL,
+    LAST_BR_HDL = BR_BD_ADDR_CHRC_HDL,
+    LAST_HDL = LAST_BR_HDL,
     MAX_HDL,
 };
+#endif
 
 static uint8_t br_grp_base_uuid[] = {0x00, 0x9a, 0x79, 0x76, 0xa1, 0x2f, 0x4b, 0x31, 0xb0, 0xfa, 0x80, 0x51, 0x56, 0x0f, 0x83, 0x56};
 
 static uint16_t mtu = 23;
-static esp_ota_handle_t ota_hdl = 0;
-static const esp_partition_t *update_partition = NULL;
-static uint16_t out_cfg_id = 0;
 static uint16_t in_cfg_offset = 0;
 static uint16_t in_cfg_id = 0;
-static uint32_t mc_offset = 0;
 static uint8_t cfg_cmd = 0;
 static DIR *d = NULL;
 static struct dirent *dir = NULL;
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
+static esp_ota_handle_t ota_hdl = 0;
+static uint32_t mc_offset = 0;
+static const esp_partition_t *update_partition = NULL;
+static uint16_t out_cfg_id = 0;
+#endif
 
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
 static void bt_att_cmd_gatt_char_read_type_rsp(uint16_t handle) {
     struct bt_att_read_type_rsp *rd_type_rsp = (struct bt_att_read_type_rsp *)bt_hci_pkt_tmp.att_data;
     uint8_t *data = rd_type_rsp->data->value;
@@ -112,6 +148,7 @@ static void bt_att_cmd_gatt_char_read_type_rsp(uint16_t handle) {
 
     bt_att_cmd(handle, BT_ATT_OP_READ_TYPE_RSP, sizeof(rd_type_rsp->len) + rd_type_rsp->len);
 }
+#endif
 
 static void bt_att_cmd_gap_char_read_type_rsp(uint16_t handle) {
     struct bt_att_read_type_rsp *rd_type_rsp = (struct bt_att_read_type_rsp *)bt_hci_pkt_tmp.att_data;
@@ -167,15 +204,17 @@ static void bt_att_cmd_blueretro_char_read_type_rsp(uint16_t handle, uint16_t st
     }
 
     switch (rd_type_rsp->data->handle + 1) {
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
         case BR_ABI_VER_CHRC_HDL:
         case BR_FW_VER_CHRC_HDL:
         case BR_BD_ADDR_CHRC_HDL:
             *data++ = BT_GATT_CHRC_READ;
             break;
         case BR_OUT_CFG_CTRL_CHRC_HDL:
-        case BR_IN_CFG_CTRL_CHRC_HDL:
         case BR_OTA_FW_DATA_CHRC_HDL:
         case BR_MC_CTRL_CHRC_HDL:
+#endif
+        case BR_IN_CFG_CTRL_CHRC_HDL:
             *data++ = BT_GATT_CHRC_WRITE;
             break;
         default:
@@ -186,7 +225,7 @@ static void bt_att_cmd_blueretro_char_read_type_rsp(uint16_t handle, uint16_t st
     *(uint16_t *)data = rd_type_rsp->data->handle + 1;
     data += 2;
     memcpy(data, br_grp_base_uuid, sizeof(br_grp_base_uuid));
-    *data = (rd_type_rsp->data->handle - BR_GLBL_CFG_ATT_HDL)/2 + 1;
+    *data = (rd_type_rsp->data->handle - FIRST_BR_HDL)/2 + 1;
 
     bt_att_cmd(handle, BT_ATT_OP_READ_TYPE_RSP, sizeof(rd_type_rsp->len) + rd_type_rsp->len);
 }
@@ -222,6 +261,7 @@ static void bt_att_cmd_ppcp_rd_rsp(uint16_t handle) {
     bt_att_cmd(handle, BT_ATT_OP_READ_RSP, sizeof(struct bt_l2cap_conn_param_req));
 }
 
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
 static void bt_att_cmd_global_cfg_rd_rsp(uint16_t handle, uint16_t offset) {
     uint32_t len = 0;
     printf("# %s\n", __FUNCTION__);
@@ -251,6 +291,7 @@ static void bt_att_cmd_out_cfg_rd_rsp(uint16_t handle, uint16_t offset) {
 
     bt_att_cmd(handle, offset ? BT_ATT_OP_READ_BLOB_RSP : BT_ATT_OP_READ_RSP, len);
 }
+#endif
 
 static void bt_att_cmd_in_cfg_rd_rsp(uint16_t handle, uint16_t offset) {
     uint32_t len = 0;
@@ -279,6 +320,7 @@ static void bt_att_cmd_in_cfg_rd_rsp(uint16_t handle, uint16_t offset) {
     bt_att_cmd(handle, offset ? BT_ATT_OP_READ_BLOB_RSP : BT_ATT_OP_READ_RSP, len);
 }
 
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
 static void bt_att_cmd_mc_rd_rsp(uint16_t handle, uint8_t blob) {
     uint32_t len = 0;
     uint32_t block = mc_offset / 4096 + 1;
@@ -297,6 +339,7 @@ static void bt_att_cmd_mc_rd_rsp(uint16_t handle, uint8_t blob) {
 
     mc_offset += len;
 }
+#endif
 
 static void bt_att_cfg_cmd_abi_ver_rsp(uint16_t handle) {
     printf("# ABI version: %d\n", BR_ABI_VER);
@@ -379,25 +422,32 @@ static void bt_att_cfg_cmd_file_rsp(uint16_t handle) {
 
 static void bt_att_cmd_read_group_rsp(uint16_t handle, uint16_t start, uint16_t end) {
     struct bt_att_read_group_rsp *rd_grp_rsp = (struct bt_att_read_group_rsp *)bt_hci_pkt_tmp.att_data;
+#ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
+    struct bt_att_group_data *gatt_data = (struct bt_att_group_data *)((uint8_t *)rd_grp_rsp->data + 0);
+    struct bt_att_group_data *gap_data = (struct bt_att_group_data *)((uint8_t *)rd_grp_rsp->data + 0);
+#else
     struct bt_att_group_data *gatt_data = (struct bt_att_group_data *)((uint8_t *)rd_grp_rsp->data + 0);
     struct bt_att_group_data *gap_data = (struct bt_att_group_data *)((uint8_t *)rd_grp_rsp->data + 6);
+#endif
     uint32_t len = sizeof(*rd_grp_rsp) - sizeof(rd_grp_rsp->data);
 
     printf("# %s\n", __FUNCTION__);
 
-    if (start <= GAP_PPCP_CHRC_HDL) {
+    if (start <= LAST_GAP_HDL) {
         rd_grp_rsp->len = 6;
 
-        if (start <= GATT_GRP_HDL && end >= GATT_SRVC_CH_CHRC_HDL) {
-            gatt_data->start_handle = GATT_GRP_HDL;
-            gatt_data->end_handle = GATT_SRVC_CH_CHRC_HDL;
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
+        if (start <= FIRST_GATT_HDL && end >= LAST_GATT_HDL) {
+            gatt_data->start_handle = FIRST_GATT_HDL;
+            gatt_data->end_handle = LAST_GATT_HDL;
             *(uint16_t *)gatt_data->value = BT_UUID_GATT;
             len += rd_grp_rsp->len;
         }
+#endif
 
-        if (start <= GAP_GRP_HDL && end >= GAP_PPCP_CHRC_HDL) {
-            gap_data->start_handle = GAP_GRP_HDL;
-            gap_data->end_handle = GAP_PPCP_CHRC_HDL;
+        if (start <= FIRST_GAP_HDL && end >= LAST_GAP_HDL) {
+            gap_data->start_handle = FIRST_GAP_HDL;
+            gap_data->end_handle = LAST_GAP_HDL;
             *(uint16_t *)gap_data->value = BT_UUID_GAP;
             len += rd_grp_rsp->len;
         }
@@ -405,9 +455,9 @@ static void bt_att_cmd_read_group_rsp(uint16_t handle, uint16_t start, uint16_t 
     else {
         rd_grp_rsp->len = 20;
 
-        if (start <= BR_GRP_HDL && end >= LAST_HDL) {
-            gatt_data->start_handle = BR_GRP_HDL;
-            gatt_data->end_handle = LAST_HDL;
+        if (start <= FIRST_BR_HDL && end >= LAST_BR_HDL) {
+            gatt_data->start_handle = FIRST_BR_HDL;
+            gatt_data->end_handle = LAST_BR_HDL;
             memcpy(gatt_data->value, br_grp_base_uuid, sizeof(br_grp_base_uuid));
             len += rd_grp_rsp->len;
         }
@@ -449,6 +499,7 @@ static void bt_att_cfg_cmd_rd_hdlr(uint16_t handle) {
 static void bt_att_cfg_cmd_wr_hdlr(struct bt_dev *device, uint8_t *data, uint32_t len) {
     cfg_cmd = data[0];
 
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
     switch (cfg_cmd) {
         case CFG_CMD_SET_DEFAULT_CFG:
         {
@@ -536,6 +587,7 @@ static void bt_att_cfg_cmd_wr_hdlr(struct bt_dev *device, uint8_t *data, uint32_
         default:
             break;
     }
+#endif
     bt_att_cmd_wr_rsp(device->acl_handle);
 }
 
@@ -578,16 +630,20 @@ void bt_att_cfg_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, u
             uint16_t end = rd_type_req->end_handle;
 
             if (*(uint16_t *)rd_type_req->uuid == BT_UUID_GATT_CHRC) {
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
                 /* GATT */
-                if (start >= GATT_GRP_HDL && start < GATT_SRVC_CH_CHRC_HDL && end >= GATT_SRVC_CH_CHRC_HDL) {
+                if (start >= FIRST_GATT_HDL && start < LAST_GATT_HDL && end >= GATT_SRVC_CH_CHRC_HDL) {
                     bt_att_cmd_gatt_char_read_type_rsp(device->acl_handle);
                 }
                 /* GAP */
-                else if (start >= GATT_SRVC_CH_CHRC_HDL && start < GAP_PPCP_CHRC_HDL && end >= GAP_PPCP_CHRC_HDL) {
+                else if (start >= LAST_GATT_HDL && start < LAST_GAP_HDL && end >= LAST_GAP_HDL) {
+#else
+                if (start >= FIRST_GAP_HDL && start < LAST_GAP_HDL && end >= LAST_GAP_HDL) {
+#endif
                     bt_att_cmd_gap_char_read_type_rsp(device->acl_handle);
                 }
                 /* BLUERETRO */
-                else if (start >= GAP_PPCP_CHRC_HDL && start < LAST_HDL && end >= LAST_HDL) {
+                else if (start >= LAST_GAP_HDL && start < LAST_BR_HDL && end >= LAST_BR_HDL) {
                     bt_att_cmd_blueretro_char_read_type_rsp(device->acl_handle, start);
                 }
                 else {
@@ -614,15 +670,18 @@ void bt_att_cfg_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, u
                 case GAP_PPCP_CHRC_HDL:
                     bt_att_cmd_ppcp_rd_rsp(device->acl_handle);
                     break;
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
                 case BR_GLBL_CFG_CHRC_HDL:
                     bt_att_cmd_global_cfg_rd_rsp(device->acl_handle, 0);
                     break;
                 case BR_OUT_CFG_DATA_CHRC_HDL:
                     bt_att_cmd_out_cfg_rd_rsp(device->acl_handle, 0);
                     break;
+#endif
                 case BR_IN_CFG_DATA_CHRC_HDL:
                     bt_att_cmd_in_cfg_rd_rsp(device->acl_handle, 0);
                     break;
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
                 case BR_ABI_VER_CHRC_HDL:
                     bt_att_cfg_cmd_abi_ver_rsp(device->acl_handle);
                     break;
@@ -635,6 +694,7 @@ void bt_att_cfg_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, u
                 case BR_BD_ADDR_CHRC_HDL:
                     bt_att_cfg_cmd_bdaddr_rsp(device->acl_handle);
                     break;
+#endif
                 case BR_CFG_CMD_CHRC_HDL:
                     if (!atomic_test_bit(&device->flags, BT_DEV_PPCP_DONE)) {
                         struct hci_cp_le_conn_update le_conn_update = {
@@ -665,18 +725,22 @@ void bt_att_cfg_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, u
             printf("# BT_ATT_OP_READ_BLOB_RSP\n");
 
             switch (rd_blob_req->handle) {
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
                 case BR_GLBL_CFG_CHRC_HDL:
                     bt_att_cmd_global_cfg_rd_rsp(device->acl_handle, rd_blob_req->offset);
                     break;
                 case BR_OUT_CFG_DATA_CHRC_HDL:
                     bt_att_cmd_out_cfg_rd_rsp(device->acl_handle, rd_blob_req->offset);
                     break;
+#endif
                 case BR_IN_CFG_DATA_CHRC_HDL:
                     bt_att_cmd_in_cfg_rd_rsp(device->acl_handle, rd_blob_req->offset);
                     break;
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
                 case BR_MC_DATA_CHRC_HDL:
                     bt_att_cmd_mc_rd_rsp(device->acl_handle, 1);
                     break;
+#endif
                 default:
                     bt_att_cmd_error_rsp(device->acl_handle, BT_ATT_OP_READ_BLOB_REQ, rd_blob_req->handle, BT_ATT_ERR_INVALID_HANDLE);
                     break;
@@ -709,6 +773,7 @@ void bt_att_cfg_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, u
 
             printf("# BT_ATT_OP_WRITE_REQ len: %ld\n", data_len);
             switch (wr_req->handle) {
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
                 case BR_GLBL_CFG_CHRC_HDL:
                     printf("# BR_GLBL_CFG_CHRC_HDL %04X\n", wr_req->handle);
                     memcpy((void *)&config.global_cfg, wr_req->value, sizeof(config.global_cfg));
@@ -720,15 +785,18 @@ void bt_att_cfg_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, u
                     config_update(config_get_src());
                     bt_att_cmd_wr_rsp(device->acl_handle);
                     break;
+#endif
                 case BR_IN_CFG_DATA_CHRC_HDL:
                     memcpy((void *)&config.in_cfg[in_cfg_id] + in_cfg_offset, wr_req->value, data_len);
                     config_update(config_get_src());
                     bt_att_cmd_wr_rsp(device->acl_handle);
                     break;
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
                 case BR_OUT_CFG_CTRL_CHRC_HDL:
                     out_cfg_id = *data;
                     bt_att_cmd_wr_rsp(device->acl_handle);
                     break;
+#endif
                 case BR_IN_CFG_CTRL_CHRC_HDL:
                     in_cfg_id = *data++;
                     in_cfg_offset = *data;
@@ -737,6 +805,7 @@ void bt_att_cfg_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, u
                 case BR_CFG_CMD_CHRC_HDL:
                     bt_att_cfg_cmd_wr_hdlr(device, wr_req->value, data_len);
                     break;
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
                 case BR_OTA_FW_DATA_CHRC_HDL:
                     esp_ota_write(ota_hdl, wr_req->value, data_len);
                     bt_att_cmd_wr_rsp(device->acl_handle);
@@ -750,6 +819,7 @@ void bt_att_cfg_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, u
                     mc_offset += data_len;
                     bt_att_cmd_wr_rsp(device->acl_handle);
                     break;
+#endif
                 default:
                     bt_att_cmd_error_rsp(device->acl_handle, BT_ATT_OP_WRITE_REQ, wr_req->handle, BT_ATT_ERR_INVALID_HANDLE);
                     break;
@@ -767,6 +837,7 @@ void bt_att_cfg_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, u
                     memcpy((void *)&config.in_cfg[in_cfg_id] + in_cfg_offset + prep_wr_req->offset, prep_wr_req->value, data_len);
                     bt_att_cmd_prep_wr_rsp(device->acl_handle, bt_hci_acl_pkt->att_data, att_len);
                     break;
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
                 case BR_OTA_FW_DATA_CHRC_HDL:
                     esp_ota_write(ota_hdl, prep_wr_req->value, data_len);
                     bt_att_cmd_prep_wr_rsp(device->acl_handle, bt_hci_acl_pkt->att_data, att_len);
@@ -776,6 +847,7 @@ void bt_att_cfg_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, u
                     mc_offset += data_len;
                     bt_att_cmd_prep_wr_rsp(device->acl_handle, bt_hci_acl_pkt->att_data, att_len);
                     break;
+#endif
                 default:
                     bt_att_cmd_error_rsp(device->acl_handle, BT_ATT_OP_PREPARE_WRITE_REQ, prep_wr_req->handle, BT_ATT_ERR_INVALID_HANDLE);
                     break;
@@ -786,7 +858,11 @@ void bt_att_cfg_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, u
         {
             struct bt_att_exec_write_req *exec_wr_req = (struct bt_att_exec_write_req *)bt_hci_acl_pkt->att_data;
             printf("# BT_ATT_OP_EXEC_WRITE_REQ\n");
-            if (!ota_hdl && exec_wr_req->flags == BT_ATT_FLAG_EXEC) {
+            if (
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
+                    !ota_hdl &&
+#endif
+                    exec_wr_req->flags == BT_ATT_FLAG_EXEC) {
                 config_update(config_get_src());
             }
             bt_att_cmd_exec_wr_rsp(device->acl_handle);
