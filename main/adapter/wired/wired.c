@@ -273,17 +273,19 @@ void IRAM_ATTR wired_gen_turbo_mask_btns32(struct wired_data *wired_data, uint32
 void IRAM_ATTR wired_gen_turbo_mask_axes8(struct wired_data *wired_data, uint8_t *axes, uint32_t axes_cnt,
                                             const uint8_t axes_idx[6], const struct ctrl_meta *axes_meta) {
     for (uint32_t i = 0; i < axes_cnt; i++) {
-        uint8_t btn_id = axis_to_btn_id(i);
-        uint8_t mask = wired_data->cnt_mask[btn_id] >> 1;
-        if (mask) {
-            if (wired_data->cnt_mask[btn_id] & 1) {
-                if (!(mask & wired_data->frame_cnt)) {
-                    axes[axes_idx[i]] = axes_meta[i].neutral;
+        if (axes_idx[i] < axes_cnt) {
+            uint8_t btn_id = axis_to_btn_id(i);
+            uint8_t mask = wired_data->cnt_mask[btn_id] >> 1;
+            if (mask) {
+                if (wired_data->cnt_mask[btn_id] & 1) {
+                    if (!(mask & wired_data->frame_cnt)) {
+                        axes[axes_idx[i]] = axes_meta[i].neutral;
+                    }
                 }
-            }
-            else {
-                if (!((mask & wired_data->frame_cnt) == mask)) {
-                    axes[axes_idx[i]] = axes_meta[i].neutral;
+                else {
+                    if (!((mask & wired_data->frame_cnt) == mask)) {
+                        axes[axes_idx[i]] = axes_meta[i].neutral;
+                    }
                 }
             }
         }
