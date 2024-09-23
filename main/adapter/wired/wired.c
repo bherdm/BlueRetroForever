@@ -170,6 +170,10 @@ void wired_fb_to_generic(int32_t dev_mode, struct raw_fb *raw_fb_data, struct ge
 }
 
 void wired_para_turbo_mask_hdlr(void) {
+#ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
+    ++wired_adapter.data[0].frame_cnt;
+    xbox_gen_turbo_mask(&wired_adapter.data[0]);
+#else
     if (wired_adapter.system_id == PARALLEL_1P || wired_adapter.system_id == PARALLEL_1P_OD) {
         struct para_1p_map *map = (struct para_1p_map *)wired_adapter.data[0].output;
         struct para_1p_map *turbo_map_mask = (struct para_1p_map *)wired_adapter.data[0].output_mask;
@@ -206,6 +210,7 @@ void wired_para_turbo_mask_hdlr(void) {
             GPIO.out1.val = map->buttons_high | turbo_map_mask->buttons_high;
         }
     }
+#endif
 }
 
 void IRAM_ATTR wired_gen_turbo_mask_btns16_pos(struct wired_data *wired_data, uint16_t *buttons, const uint32_t btns_mask[32]) {
