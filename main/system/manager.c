@@ -395,7 +395,11 @@ static void boot_btn_hdl(void) {
 
         while (sys_mgr_get_boot_btn()) {
             hold_cnt++;
+#ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
+            if (hold_cnt > (hw_config.sw_io0_hold_thres_ms[state] / 10) && state < SYS_MGR_BTN_STATE1) {
+#else
             if (hold_cnt > (hw_config.sw_io0_hold_thres_ms[state] / 10) && state < SYS_MGR_BTN_STATE3) {
+#endif
                 ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, hw_config.led_flash_duty_cycle, 0);
                 ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER_1, hw_config.led_flash_hz[state]);
                 state++;
@@ -422,6 +426,9 @@ static void boot_btn_hdl(void) {
                     check_qdp = 1;
                     break;
                 case SYS_MGR_BTN_STATE1:
+#ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
+                    bt_host_disconnect_all();
+#else
                     if (bt_hci_get_inquiry()) {
                         bt_hci_stop_inquiry();
                     }
@@ -431,6 +438,7 @@ static void boot_btn_hdl(void) {
                     break;
                 case SYS_MGR_BTN_STATE2:
                     bt_hci_start_inquiry();
+#endif
                     break;
                 default:
                     sys_mgr_factory_reset();
