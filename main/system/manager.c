@@ -542,11 +542,13 @@ static int32_t sys_mgr_get_boot_btn(void) {
 }
 
 static void sys_mgr_factory_reset(void) {
+#ifndef CONFIG_BLUERETRO_SYSTEM_XBOX
     const esp_partition_t* partition = esp_partition_find_first(
             ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_OTA, "otadata");
     if (factory_reset && partition) {
         esp_partition_erase_range(partition, 0, partition->size);
     }
+#endif
 
     fs_reset();
     printf("BlueRetro factory reset\n");
