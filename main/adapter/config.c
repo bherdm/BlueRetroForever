@@ -115,7 +115,11 @@ static uint32_t config_version_magic[] = {
     CONFIG_MAGIC_V3,
 };
 static uint8_t config_default_combo[BR_COMBO_CNT] = {
+#ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
+    PAD_MT
+#else
     PAD_LM, PAD_RM, PAD_MM, PAD_RB_UP, PAD_RB_LEFT, PAD_RB_RIGHT, PAD_RB_DOWN, PAD_LD_UP, PAD_LD_DOWN, PAD_MS
+#endif
 };
 
 static void config_init_struct(struct config *data);
