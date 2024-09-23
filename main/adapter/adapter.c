@@ -433,7 +433,11 @@ void adapter_bridge(struct bt_data *bt_data) {
             }
 
             adapter_out_mask[bt_data->base.pids->out_idx] =
+#ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
+                out_mask = adapter_mapping(&config.in_cfg[bt_data->base.pids->out_idx + config.global_cfg.banksel]);
+#else
                 out_mask = adapter_mapping(&config.in_cfg[bt_data->base.pids->out_idx]);
+#endif
 
 #ifdef CONFIG_BLUERETRO_ADAPTER_INPUT_MAP_DBG
             TESTS_CMDS_LOG("\"mapped_input\": {");
