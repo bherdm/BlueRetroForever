@@ -685,6 +685,7 @@ void sys_mgr_init(uint32_t package) {
         case VBOY:
         case PARALLEL_1P_OD:
         case SEA_BOARD:
+        case XBOX:
             hw_config.port_cnt = 1;
             break;
         default:
