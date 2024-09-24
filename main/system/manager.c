@@ -103,6 +103,11 @@ static void sys_mgr_factory_reset(void);
 static void sys_mgr_deep_sleep(void);
 static void sys_mgr_esp_restart(void);
 static void sys_mgr_wired_reset(void);
+static void sys_mgr_flash_led_on(void);
+static void sys_mgr_flash_led_off(void);
+static void sys_mgr_flash_led_slow(void);
+static void sys_mgr_flash_led_fast(void);
+static void sys_mgr_flash_led_faster(void);
 
 static const sys_mgr_cmd_t sys_mgr_cmds[] = {
     sys_mgr_reset,
@@ -113,6 +118,11 @@ static const sys_mgr_cmd_t sys_mgr_cmds[] = {
     sys_mgr_deep_sleep,
     sys_mgr_esp_restart,
     sys_mgr_wired_reset,
+    sys_mgr_flash_led_on,
+    sys_mgr_flash_led_off,
+    sys_mgr_flash_led_slow,
+    sys_mgr_flash_led_fast,
+    sys_mgr_flash_led_faster,
 };
 
 static inline uint32_t sense_port_is_empty(uint32_t index) {
@@ -530,6 +540,29 @@ static void sys_mgr_power_off(void) {
         set_power_off(0);
     }
 #endif
+}
+
+static void sys_mgr_flash_led_on(void) {
+    set_leds_as_btn_status(1);
+}
+
+static void sys_mgr_flash_led_off(void) {
+    set_leds_as_btn_status(0);
+}
+
+static void sys_mgr_flash_led_slow(void) {
+    ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, hw_config.led_flash_duty_cycle, 0);
+    ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER_1, hw_config.led_flash_hz[0]);
+}
+
+static void sys_mgr_flash_led_fast(void) {
+    ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, hw_config.led_flash_duty_cycle, 0);
+    ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER_1, hw_config.led_flash_hz[1]);
+}
+
+static void sys_mgr_flash_led_faster(void) {
+    ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, hw_config.led_flash_duty_cycle, 0);
+    ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER_1, hw_config.led_flash_hz[2]);
 }
 
 static int32_t sys_mgr_get_power(void) {
