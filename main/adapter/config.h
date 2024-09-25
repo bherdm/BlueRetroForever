@@ -106,5 +106,7 @@ void config_init(uint32_t src);
 void config_update(uint32_t dst);
 uint32_t config_get_src(void);
 void config_debug_log(void);
+struct map_cfg *config_get_first_map_for_src(uint32_t index, uint8_t src_btn);
+void config_init_mapping_bank(struct config *data, uint32_t index);
 
 #endif /* _CONFIG_H_ */
