@@ -433,9 +433,11 @@ void adapter_bridge(struct bt_data *bt_data) {
                 return;
             }
 
+            uint32_t cfg_idx = (in_menu) ? 11 : bt_data->base.pids->out_idx + config.global_cfg.banksel;
+
             adapter_out_mask[bt_data->base.pids->out_idx] =
 #ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
-                out_mask = adapter_mapping(&config.in_cfg[bt_data->base.pids->out_idx + config.global_cfg.banksel]);
+                out_mask = adapter_mapping(&config.in_cfg[cfg_idx]);
 #else
                 out_mask = adapter_mapping(&config.in_cfg[bt_data->base.pids->out_idx]);
 #endif
