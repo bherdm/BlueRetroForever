@@ -123,7 +123,9 @@ int32_t ps3_to_generic(struct bt_data *bt_data, struct wireless_ctrl *ctrl_data)
         for (uint32_t i = 0; i < ADAPTER_PS2_MAX_AXES; i++) {
             meta[i].abs_max *= MAX_PULL_BACK;
             meta[i].abs_min *= MAX_PULL_BACK;
-            bt_data->base.axes_cal[i] = -(map->axes[ps3_axes_idx[i]] - ps3_axes_meta[i].neutral);
+            if (atomic_test_bit(&bt_data->base.flags[PAD], BT_AXES_CALIB_EN)) {
+                bt_data->base.axes_cal[i] = -(map->axes[ps3_axes_idx[i]] - ps3_axes_meta[i].neutral);
+            }
             if (i) {
                 bt_mon_log(false, ", ");
             }
