@@ -516,4 +516,19 @@ void config_init_mapping_bank(struct config *data, uint32_t index) {
         data->in_cfg[index].map_cfg[idx].turbo = 0;
         data->in_cfg[index].map_cfg[idx].algo = 0;
     }
+
+#ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
+    uint8_t config_xbox_exit_combo[4] = {PAD_LM, PAD_RM, PAD_MM, PAD_MS};
+    for (uint32_t k = 0; k < sizeof(config_xbox_exit_combo); idx++, k++) {
+        data->in_cfg[index].map_cfg[idx].src_btn = PAD_MQ;
+        data->in_cfg[index].map_cfg[idx].dst_btn = config_xbox_exit_combo[k];
+        data->in_cfg[index].map_cfg[idx].dst_id = 0;
+        data->in_cfg[index].map_cfg[idx].perc_max = 100;
+        data->in_cfg[index].map_cfg[idx].perc_threshold = 50;
+        data->in_cfg[index].map_cfg[idx].perc_deadzone = 135;
+        data->in_cfg[index].map_cfg[idx].turbo = 0;
+        data->in_cfg[index].map_cfg[idx].algo = 0;
+        data->in_cfg[index].map_size++;
+    }
+#endif
 }
