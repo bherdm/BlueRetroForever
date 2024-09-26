@@ -9,6 +9,7 @@
 #include "device/usbd_pvt.h"
 #include "adapter/adapter.h"
 #include "adapter/wired/xbox.h"
+#include "adapter/config.h"
 #include "xbox_usb.h"
 
 #define XBOX_INTERFACE_CLASS 88
@@ -114,13 +115,15 @@ static bool xboxd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_re
             {
                 // printf("%s: Got rumble fb: %02X%02X%02X%02X\n", __FUNCTION__,
                 //     ep_out_buf[2], ep_out_buf[3], ep_out_buf[4], ep_out_buf[5]);
-                struct raw_fb fb_data = {0};
-                fb_data.data[0] = ep_out_buf[3];
-                fb_data.data[1] = ep_out_buf[5];
-                fb_data.header.wired_id = 0;
-                fb_data.header.type = FB_TYPE_RUMBLE;
-                fb_data.header.data_len = 2;
-                adapter_q_fb(&fb_data);
+                if (config.out_cfg[0].acc_mode == ACC_RUMBLE) {
+                    struct raw_fb fb_data = {0};
+                    fb_data.data[0] = ep_out_buf[3];
+                    fb_data.data[1] = ep_out_buf[5];
+                    fb_data.header.wired_id = 0;
+                    fb_data.header.type = FB_TYPE_RUMBLE;
+                    fb_data.header.data_len = 2;
+                    adapter_q_fb(&fb_data);
+                }
                 break;
             }
         }
