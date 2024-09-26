@@ -414,6 +414,7 @@ void IRAM_ATTR adapter_init_buffer(uint8_t wired_id) {
 }
 
 void adapter_bridge(struct bt_data *bt_data) {
+    static int32_t in_menu = 0;
     uint32_t out_mask = 0;
 
     if (bt_data->base.pids->type != BT_NONE) {
@@ -427,7 +428,7 @@ void adapter_bridge(struct bt_data *bt_data) {
         adapter_debug_wireless_print(ctrl_input);
 #endif
         if (wired_adapter.system_id != WIRED_AUTO) {
-            if (wired_meta_init(ctrl_output)) {
+            if (wired_meta_init(ctrl_output, in_menu)) {
                 /* Unsupported system */
                 return;
             }
@@ -444,7 +445,8 @@ void adapter_bridge(struct bt_data *bt_data) {
             adapter_debug_wired_print(&ctrl_output[bt_data->base.pids->out_idx]);
 #endif
             ctrl_output[bt_data->base.pids->out_idx].index = bt_data->base.pids->out_idx;
-            if (sys_macro_hdl(&ctrl_output[bt_data->base.pids->out_idx], &bt_data->base.flags[PAD])) {
+            in_menu = sys_macro_hdl(&ctrl_output[bt_data->base.pids->out_idx], &bt_data->base.flags[PAD]);
+            if (in_menu) {
                 /* We are in the adapter menu, mute output to system */
                 return;
             }
@@ -550,6 +552,6 @@ void adapter_init(void) {
 
 void adapter_meta_init(void) {
     if (wired_adapter.system_id != WIRED_AUTO) {
-        wired_meta_init(ctrl_output);
+        wired_meta_init(ctrl_output, 0);
     }
 }

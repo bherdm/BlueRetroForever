@@ -143,9 +143,15 @@ static DRAM_ATTR buffer_init_t buffer_init_func[WIRED_MAX] = {
     xbox_init_buffer, /* XBOX */
 };
 
-int32_t wired_meta_init(struct wired_ctrl *ctrl_data) {
+static const uint32_t menu_desc[4] = {0x00000000, 0x00000000, 0x00000000, 0x00000000};
+
+int32_t wired_meta_init(struct wired_ctrl *ctrl_data, int32_t in_menu) {
     if (meta_init_func[wired_adapter.system_id]) {
         meta_init_func[wired_adapter.system_id](ctrl_data);
+        if (in_menu) {
+            /* While in the menu convert axes to btns */
+            ctrl_data[0].desc = menu_desc;
+        }
         return 0;
     }
     return -1;
