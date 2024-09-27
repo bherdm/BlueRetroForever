@@ -23,6 +23,7 @@ enum {
     SYS_MGR_CMD_FLASH_LED_SLOW,
     SYS_MGR_CMD_FLASH_LED_FAST,
     SYS_MGR_CMD_FLASH_LED_FASTER,
+    SYS_MGR_CMD_SAVE_CONFIG,
 };
 
 void sys_mgr_cmd(int8_t cmd);

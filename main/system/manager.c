@@ -108,6 +108,7 @@ static void sys_mgr_flash_led_off(void);
 static void sys_mgr_flash_led_slow(void);
 static void sys_mgr_flash_led_fast(void);
 static void sys_mgr_flash_led_faster(void);
+static void sys_mgr_save_config(void);
 
 static const sys_mgr_cmd_t sys_mgr_cmds[] = {
     sys_mgr_reset,
@@ -123,6 +124,7 @@ static const sys_mgr_cmd_t sys_mgr_cmds[] = {
     sys_mgr_flash_led_slow,
     sys_mgr_flash_led_fast,
     sys_mgr_flash_led_faster,
+    sys_mgr_save_config,
 };
 
 static inline uint32_t sense_port_is_empty(uint32_t index) {
@@ -563,6 +565,10 @@ static void sys_mgr_flash_led_fast(void) {
 static void sys_mgr_flash_led_faster(void) {
     ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, hw_config.led_flash_duty_cycle, 0);
     ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER_1, hw_config.led_flash_hz[2]);
+}
+
+static void sys_mgr_save_config(void) {
+    config_update(config_get_src());
 }
 
 static int32_t sys_mgr_get_power(void) {
