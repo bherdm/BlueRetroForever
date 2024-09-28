@@ -474,17 +474,6 @@ void config_init_mapping_bank(struct config *data, uint32_t index) {
     uint32_t idx = 0;
 #ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
     for (uint32_t j = 0; j < PAD_MAX; j++) {
-        switch (j) {
-            /* Remove unused buttons for XBOX */
-            case PAD_RD_LEFT:
-            case PAD_RD_RIGHT:
-            case PAD_RD_DOWN:
-            case PAD_RD_UP:
-            case PAD_LT:
-            case PAD_RT:
-                data->in_cfg[index].map_size--;
-                continue;
-        }
 #else
     for (; j < KBM_MAX; j++) {
 #endif
