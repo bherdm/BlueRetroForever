@@ -133,8 +133,17 @@ static bool xboxd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_re
 
 static bool xboxd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
     if (ep_addr == ep_out) {
-        printf("%s: Got rumble fb: %02X%02X%02X%02X\n", __FUNCTION__,
-                    ep_out_buf[2], ep_out_buf[3], ep_out_buf[4], ep_out_buf[5]);
+        // printf("%s: Got rumble fb: %02X%02X%02X%02X\n", __FUNCTION__,
+        //     ep_out_buf[2], ep_out_buf[3], ep_out_buf[4], ep_out_buf[5]);
+        if (config.out_cfg[0].acc_mode == ACC_RUMBLE) {
+            struct raw_fb fb_data = {0};
+            fb_data.data[0] = ep_out_buf[3];
+            fb_data.data[1] = ep_out_buf[5];
+            fb_data.header.wired_id = 0;
+            fb_data.header.type = FB_TYPE_RUMBLE;
+            fb_data.header.data_len = 2;
+            adapter_q_fb(&fb_data);
+        }
     }
 
     return true;
@@ -223,6 +232,12 @@ void xbox_send_report(void) {
         *(uint32_t *)&ep_in_buf[16] = wired_adapter.data[0].output32[4]
             & wired_adapter.data[0].output_mask32[4];
         usbd_edpt_xfer(0, ep_in, ep_in_buf, XBOX_REPORT_IN_SIZE);
+    }
+}
+
+void xbox_get_report(void) {
+    if (tud_ready() && !usbd_edpt_busy(0, ep_out)) {
+        usbd_edpt_xfer(0, ep_out, ep_out_buf, XBOX_REPORT_OUT_SIZE);
     }
 }
 

@@ -10,6 +10,7 @@
 
 void xbox_init(void);
 void xbox_send_report(void);
+void xbox_get_report(void);
 void xbox_port_cfg(uint16_t mask);
 
 #endif  /* _XBOX_USB_H_ */

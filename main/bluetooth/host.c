@@ -29,6 +29,7 @@
 #include "adapter/gameid.h"
 #include "adapter/memory_card.h"
 #include "adapter/wired/wired.h"
+#include "wired/xbox_usb.h"
 #include "adapter/hid_parser.h"
 #include "bluetooth/hidp/ps.h"
 
@@ -327,6 +328,9 @@ static void bt_host_task(void *param) {
     adapter_toggle_fb(0, 150000,
         wired_adapter.data[0].output[16], wired_adapter.data[0].output[17]);
 #endif
+
+        /* Queue rumble request for xbox, some games need it */
+        xbox_get_report();
 
         vTaskDelay(16 / portTICK_PERIOD_MS);
     }
