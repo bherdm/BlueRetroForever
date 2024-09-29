@@ -45,7 +45,6 @@ struct generic_fb fb_input;
 struct bt_adapter bt_adapter = {0};
 struct wired_adapter wired_adapter = {0};
 static uint32_t adapter_out_mask[WIRED_MAX_DEV] = {0};
-static bool rumble_mute = false;
 static int32_t in_menu = 0;
 
 static uint32_t btn_id_to_btn_idx(uint8_t btn_id) {
@@ -224,8 +223,8 @@ static void adapter_fb_stop_cb(void* arg) {
 
     adapter_fb_stop_timer_stop((uint8_t)(uintptr_t)arg);
 
-    /* Unmute system rumble */
-    rumble_mute = false;
+    /* Exit menu now since at this point the exit rumble fb is done */
+    in_menu = 0;
 
     /* Send 0 byte data, system that require callback stop shall look for that */
     queue_bss_enqueue(wired_adapter.input_q_hdl, (uint8_t *)&fb_data, sizeof(fb_data));
@@ -447,9 +446,12 @@ void adapter_bridge(struct bt_data *bt_data) {
             adapter_debug_wired_print(&ctrl_output[bt_data->base.pids->out_idx]);
 #endif
             ctrl_output[bt_data->base.pids->out_idx].index = bt_data->base.pids->out_idx;
-            in_menu = sys_macro_hdl(&ctrl_output[bt_data->base.pids->out_idx], &bt_data->base.flags[PAD]);
-            if (in_menu) {
+            int32_t menu_ret = sys_macro_hdl(&ctrl_output[bt_data->base.pids->out_idx], &bt_data->base.flags[PAD]);
+            if (menu_ret) {
                 /* We are in the adapter menu, mute output to system */
+                if (!in_menu) {
+                    in_menu = 1;
+                }
                 return;
             }
             for (uint32_t i = 0; out_mask; i++, out_mask >>= 1) {
