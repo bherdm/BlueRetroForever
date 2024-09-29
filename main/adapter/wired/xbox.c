@@ -198,12 +198,10 @@ void xbox_fb_to_generic(int32_t dev_mode, struct raw_fb *raw_fb_data, struct gen
         case FB_TYPE_RUMBLE:
             /* This stop rumble when BR timeout trigger */
             if (raw_fb_data->header.data_len == 0) {
-                printf("# %s: RX Stop rumble packet\n", __FUNCTION__);
                 fb_data->state = 0;
                 fb_data->lf_pwr = fb_data->hf_pwr = 0;
             }
             else {
-                printf("# %s: Set RX rumble\n", __FUNCTION__);
                 fb_data->state = (raw_fb_data->data[0] || raw_fb_data->data[1] ? 1 : 0);
                 fb_data->lf_pwr = raw_fb_data->data[0];
                 fb_data->hf_pwr = raw_fb_data->data[1];
