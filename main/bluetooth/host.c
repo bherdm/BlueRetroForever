@@ -323,6 +323,7 @@ static void bt_host_task(void *param) {
 
         /* Update turbo mask for parallel system */
         wired_para_turbo_mask_hdlr();
+        xbox_send_report();
 
 #ifdef CONFIG_BLUERETRO_ADAPTER_RUMBLE_DBG
     adapter_toggle_fb(0, 150000,
