@@ -46,6 +46,7 @@ struct bt_adapter bt_adapter = {0};
 struct wired_adapter wired_adapter = {0};
 static uint32_t adapter_out_mask[WIRED_MAX_DEV] = {0};
 static bool rumble_mute = false;
+static int32_t in_menu = 0;
 
 static uint32_t btn_id_to_btn_idx(uint8_t btn_id) {
     if (btn_id < 32) {
@@ -227,7 +228,7 @@ static void adapter_fb_stop_cb(void* arg) {
     rumble_mute = false;
 
     /* Send 0 byte data, system that require callback stop shall look for that */
-    adapter_q_fb(&fb_data);
+    queue_bss_enqueue(wired_adapter.input_q_hdl, (uint8_t *)&fb_data, sizeof(fb_data));
 }
 
 uint32_t adapter_get_out_mask(uint8_t dev_id) {
@@ -414,7 +415,6 @@ void IRAM_ATTR adapter_init_buffer(uint8_t wired_id) {
 }
 
 void adapter_bridge(struct bt_data *bt_data) {
-    static int32_t in_menu = 0;
     uint32_t out_mask = 0;
 
     if (bt_data->base.pids->type != BT_NONE) {
@@ -499,7 +499,7 @@ uint32_t adapter_bridge_fb(struct raw_fb *fb_data, struct bt_data *bt_data) {
 
 void IRAM_ATTR adapter_q_fb(struct raw_fb *fb_data) {
     /* Best efford only on fb */
-    if (!rumble_mute) {
+    if (!in_menu) {
         queue_bss_enqueue(wired_adapter.input_q_hdl, (uint8_t *)fb_data, sizeof(*fb_data));
     }
 }
@@ -509,7 +509,7 @@ void adapter_toggle_fb(uint32_t wired_id, uint32_t duration_us, uint8_t lf_pwr, 
     struct bt_data *bt_data = NULL;
 
     bt_host_get_active_dev_from_out_idx(wired_id, &device);
-    if (!rumble_mute && device) {
+    if (device) {
         bt_data = &bt_adapter.data[device->ids.id];
         if (bt_data) {
             struct generic_fb fb_data = {0};
@@ -519,7 +519,6 @@ void adapter_toggle_fb(uint32_t wired_id, uint32_t duration_us, uint8_t lf_pwr, 
             fb_data.state = 1;
             fb_data.hf_pwr = hf_pwr;
             fb_data.lf_pwr = lf_pwr;
-            rumble_mute = true;
             adapter_fb_stop_timer_start(wired_id, duration_us);
             wireless_fb_from_generic(&fb_data, bt_data);
             bt_hid_feedback(device, bt_data->base.output);
