@@ -603,6 +603,7 @@ void adapter_q_fb(struct raw_fb *fb_data);
 void adapter_toggle_fb(uint32_t wired_id, uint32_t duration_us, uint8_t lf_pwr, uint8_t hf_pwr);
 void adapter_init(void);
 void adapter_meta_init(void);
+void adapter_menu_reset(void);
 
 static inline void bt_type_update(int32_t dev_id, int32_t type, uint32_t subtype) {
     struct bt_data *bt_data = &bt_adapter.data[dev_id];

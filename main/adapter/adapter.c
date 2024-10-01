@@ -558,3 +558,7 @@ void adapter_meta_init(void) {
         wired_meta_init(ctrl_output, 0);
     }
 }
+
+void adapter_menu_reset(void) {
+    in_menu = 0;
+}

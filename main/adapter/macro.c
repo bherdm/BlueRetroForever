@@ -190,7 +190,9 @@ int32_t sys_macro_hdl(struct wired_ctrl *ctrl_data, atomic_t *flags) {
                     sys_mgr_cmd(SYS_MGR_CMD_PWR_OFF);
                     menu_state = MENU_STATE_INACTIVE;
                     sys_mgr_cmd(SYS_MGR_CMD_FLASH_LED_OFF);
-                    break;
+                    adapter_menu_reset();
+                    atomic_clear_bit(flags, BT_WAITING_FOR_RELEASE_MACRO1);
+                    return 0;
                 case PAD_LM:
                 case PAD_LS:
                 case PAD_RM:
