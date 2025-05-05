@@ -79,9 +79,13 @@ static DRAM_ATTR const uint32_t gc_btns_mask_alt[32] = {
     0, BIT(GC_Z), BIT(GC_R), 0,
 };
 static DRAM_ATTR const uint32_t *btns_mask[WIRED_MAX_DEV] = {
+#ifdef CONFIG_BLUERETRO_SYSTEM_XBOX
+    gc_btns_mask, gc_btns_mask, gc_btns_mask, gc_btns_mask, gc_btns_mask
+#else
     gc_btns_mask, gc_btns_mask, gc_btns_mask, gc_btns_mask,
     gc_btns_mask, gc_btns_mask, gc_btns_mask, gc_btns_mask,
     gc_btns_mask, gc_btns_mask, gc_btns_mask, gc_btns_mask,
+#endif
 };
 
 static const uint32_t gc_kb_mask[4] = {0xE6FF0F0F, 0xFFFFFFFF, 0x1FBFFFFF, 0x0003C000 | BR_COMBO_MASK};
