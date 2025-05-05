@@ -16,7 +16,11 @@
 #define _GPIO_H_
 
 #include "soc/gpio_sig_map.h"
+#if CONFIG_IDF_TARGET_ESP32
 #include "esp32/rom/gpio.h"
+#elif CONFIG_IDF_TARGET_ESP32S2
+#include "esp32s2/rom/ets_sys.h"
+#endif
 #include "soc/gpio_struct.h"
 #include "hal/gpio_types.h"
 #include "driver/gpio.h"

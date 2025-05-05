@@ -4,7 +4,11 @@
  */
 
 #include <stdio.h>
+#if CONFIG_IDF_TARGET_ESP32
 #include <esp32/rom/crc.h>
+#elif CONFIG_IDF_TARGET_ESP32S2
+#include <esp32s2/rom/crc.h>
+#endif
 #include <esp_timer.h>
 #include "adapter/adapter.h"
 #include "adapter/config.h"
