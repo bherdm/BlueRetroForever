@@ -29,6 +29,30 @@
 #include "bare_metal_app_cpu.h"
 #include "manager.h"
 
+#ifdef CONFIG_BLUERETRO_VENDOR_LBI
+#define BOOT_BTN_PIN 0
+
+#define RESET_PIN 14
+
+#define POWER_ON_PIN 22
+#define POWER_OFF_PIN 21
+#define POWER_SENSE_PIN 39
+
+#define POWER_OFF_ALT_PIN 12
+
+#define SENSE_P1_PIN 9
+#define SENSE_P2_PIN 10
+#define SENSE_P3_PIN 34
+#define SENSE_P4_PIN 35
+
+#define SENSE_P1_ALT_PIN 15
+#define SENSE_P2_ALT_PIN 34
+
+#define LED_P1_PIN 2
+#define LED_P2_PIN 4
+#define LED_P3_PIN 12
+#define LED_P4_PIN 15
+#else
 #define BOOT_BTN_PIN 0
 
 #define RESET_PIN 14
@@ -51,6 +75,7 @@
 #define LED_P2_PIN 4
 #define LED_P3_PIN 12
 #define LED_P4_PIN 15
+#endif /* CONFIG_BLUERETRO_VENDOR_LBI */
 
 #define INHIBIT_CNT 200
 
