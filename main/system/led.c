@@ -18,6 +18,7 @@
 #define ERR_LED_PIN 17
 #endif
 #define PICO_ERR_LED_PIN 20
+#define MINI_ERR_LED_PIN 27
 
 /* LED flags */
 enum {
@@ -61,9 +62,15 @@ void err_led_init(uint32_t package) {
         .timer_sel  = LEDC_TIMER_0,
     };
 
-    if (package == EFUSE_RD_CHIP_VER_PKG_ESP32PICOV302) {
-        ledc_channel.gpio_num = PICO_ERR_LED_PIN;
-        err_led_pin = PICO_ERR_LED_PIN;
+    switch (package) {
+        case EFUSE_RD_CHIP_VER_PKG_ESP32U4WDH:
+            ledc_channel.gpio_num = MINI_ERR_LED_PIN;
+            err_led_pin = MINI_ERR_LED_PIN;
+            break;
+        case EFUSE_RD_CHIP_VER_PKG_ESP32PICOV302:
+            ledc_channel.gpio_num = PICO_ERR_LED_PIN;
+            err_led_pin = PICO_ERR_LED_PIN;
+            break;
     }
 
     ledc_timer_config(&ledc_timer);

@@ -92,7 +92,7 @@ typedef union {
     uint32_t val;
 } u32_val_t;
 
-static const uint8_t gpio_pin[][2] = {
+static uint8_t gpio_pin[][2] = {
     {21, 22},
 #ifndef CONFIG_BLUERETRO_WIRED_TRACE
     { 3,  5},
@@ -674,8 +674,21 @@ maple_abort:
 void maple_init(uint32_t package)
 {
 #ifdef CONFIG_BLUERETRO_SYSTEM_DC
-    if (package == EFUSE_RD_CHIP_VER_PKG_ESP32PICOV302) {
-        port_cnt = 1;
+    switch (package) {
+        case EFUSE_RD_CHIP_VER_PKG_ESP32U4WDH:
+            port_cnt = 1;
+            gpio_pin[0][0] = 23;
+            gpio_pin[0][1] = 19;
+            gpio_pin[1][0] = 18;
+            gpio_pin[1][1] = 5;
+            gpio_pin[2][0] = 26;
+            gpio_pin[2][1] = 25;
+            gpio_pin[3][0] = 33;
+            gpio_pin[3][1] = 32;
+            break;
+        case EFUSE_RD_CHIP_VER_PKG_ESP32PICOV302:
+            port_cnt = 1;
+            break;
     }
 #endif
 #ifndef CONFIG_BLUERETRO_WIRED_TRACE
