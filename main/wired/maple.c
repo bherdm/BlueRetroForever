@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023, Jacques Gagnon
+ * Copyright (c) 2019-2025, Jacques Gagnon
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -92,6 +92,30 @@ typedef union {
     uint32_t val;
 } u32_val_t;
 
+#ifdef CONFIG_BLUERETRO_VENDOR_LBI
+static uint8_t gpio_pin[][2] = {
+    {19, 23},
+#ifndef CONFIG_BLUERETRO_WIRED_TRACE
+    {18,  5},
+    {26, 25},
+    {33, 32},
+#endif
+};
+
+static uint8_t pin_to_port[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x02, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static uint32_t maple0_to_maple1[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, BIT(5), BIT(23), 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, BIT(25), 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+#else
 static uint8_t gpio_pin[][2] = {
     {21, 22},
 #ifndef CONFIG_BLUERETRO_WIRED_TRACE
@@ -114,6 +138,7 @@ static uint32_t maple0_to_maple1[] = {
     0x00, 0x00, BIT(23), 0x00, 0x00, BIT(22), 0x00, 0x00,
     0x00, 0x00, BIT(27), 0x00, 0x00, 0x00, 0x00, 0x00,
 };
+#endif /* CONFIG_BLUERETRO_LBI_DC */
 
 #ifndef CONFIG_BLUERETRO_WIRED_TRACE
 static const uint8_t ctrl_area_dir_name[] = {
@@ -673,19 +698,11 @@ maple_abort:
 
 void maple_init(uint32_t package)
 {
+#ifdef CONFIG_BLUERETRO_VENDOR_LBI
+    port_cnt = 1;
+#endif
 #ifdef CONFIG_BLUERETRO_SYSTEM_DC
     switch (package) {
-        case EFUSE_RD_CHIP_VER_PKG_ESP32U4WDH:
-            port_cnt = 1;
-            gpio_pin[0][0] = 23;
-            gpio_pin[0][1] = 19;
-            gpio_pin[1][0] = 18;
-            gpio_pin[1][1] = 5;
-            gpio_pin[2][0] = 26;
-            gpio_pin[2][1] = 25;
-            gpio_pin[3][0] = 33;
-            gpio_pin[3][1] = 32;
-            break;
         case EFUSE_RD_CHIP_VER_PKG_ESP32PICOV302:
             port_cnt = 1;
             break;

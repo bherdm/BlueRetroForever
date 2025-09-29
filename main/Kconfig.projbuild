@@ -7,6 +7,24 @@ menu "BlueRetro"
             Select this to enable HW2 features like port detection.
 
     choice
+        prompt "Enable vendor customization"
+        default BLUERETRO_VENDOR_VANILLA
+        help
+            Enable vendor customization.
+
+        config BLUERETRO_VENDOR_VANILLA
+            bool "Vanilla"
+            help
+                Unmodified version of BlueRetro.
+
+        config BLUERETRO_VENDOR_LBI
+            bool "Laser Bear Industries"
+            help
+                Customization for Laser Bear Industries.
+
+    endchoice
+
+    choice
         prompt "Select universal or specific system"
         default BLUERETRO_SYSTEM_UNIVERSAL
         help
