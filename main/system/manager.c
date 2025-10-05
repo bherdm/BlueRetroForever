@@ -40,8 +40,8 @@
 
 #define POWER_OFF_ALT_PIN 12
 
-#define SENSE_P1_PIN 9
-#define SENSE_P2_PIN 10
+#define SENSE_P1_PIN 32
+#define SENSE_P2_PIN 33
 #define SENSE_P3_PIN 34
 #define SENSE_P4_PIN 35
 
