@@ -4,15 +4,26 @@
 #include "soc/rtc_cntl_reg.h"
 
 
-.bss //Declaracao de variaveis
+.bss
 
+   .global variable
+variable:
+   .long 0
+
+   .global test_array
+test_array:
+   .space 64
+
+.data
+
+   .global test_array_index
+test_array_index:
+   .long 512
 
 .text
 
     .global main
-    main: //Inicio do codigo (Entry point)
-
-
+    main:
 
     loop:
 
