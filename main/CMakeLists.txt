@@ -87,6 +87,7 @@ set(srcs
     "wired/sea_io.c"
     "wired/wii_i2c.c"
     "zephyr/atomic.S"
+    "ulp/apa102.c"
 )
 
 if(CONFIG_BLUERETRO_WS_CMDS)
@@ -128,3 +129,8 @@ idf_build_set_property(COMPILE_DEFINITIONS "-DXT_INTEXC_HOOKS" APPEND)
 
 target_link_libraries(${COMPONENT_TARGET} "-u ld_include_my_startup_file")
 target_link_libraries(${COMPONENT_TARGET} "-u ld_include_core0_stall_highint_hdl")
+
+set(ulp_app_name ulp_apa102)
+set(ulp_s_sources "ulp/apa102.S")
+set(ulp_exp_dep_srcs "ulp/apa102.c")
+ulp_embed_binary(${ulp_app_name} "${ulp_s_sources}" "${ulp_exp_dep_srcs}")

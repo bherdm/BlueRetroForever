@@ -27,6 +27,7 @@
 #include "system/manager.h"
 #include "tests/ws_srv.h"
 #include "tests/coverage.h"
+#include "ulp/apa102.h"
 #include "sdkconfig.h"
 
 static uint32_t chip_package = EFUSE_RD_CHIP_VER_PKG_ESP32D0WDQ6;
@@ -90,7 +91,8 @@ static void wl_init_task(void *arg) {
     cov_init();
 #endif
 
-    err_led_init(chip_package);
+    //err_led_init(chip_package);
+    apa102_init();
 
     core0_stall_init();
 
