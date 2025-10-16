@@ -3,6 +3,11 @@
 #include "soc/sens_reg.h"
 #include "soc/rtc_cntl_reg.h"
 
+#define DATA_LO WRITE_RTC_REG(RTC_GPIO_OUT_W1TC_REG, RTC_GPIO_OUT_DATA_W1TC_S+10, 1, 1)
+#define DATA_HI WRITE_RTC_REG(RTC_GPIO_OUT_W1TC_REG, RTC_GPIO_OUT_DATA_W1TS_S+10, 1, 1)
+#define CLK_LO WRITE_RTC_REG(RTC_GPIO_OUT_W1TC_REG, RTC_GPIO_OUT_DATA_W1TC_S+12, 1, 1)
+#define CLK_HI WRITE_RTC_REG(RTC_GPIO_OUT_W1TC_REG, RTC_GPIO_OUT_DATA_W1TS_S+12, 1, 1)
+#define CLK_PULSE CLK_HI; CLK_LO
 
 .bss
 
@@ -22,90 +27,16 @@ test_array_index:
 
 .text
 
-    .global main
-    main:
+   .global main
+   main:
+      DATA_LO
+      CLK_LO
+      
+      // SOF
+      stage_rst
+      1:
+         stage_inc 1
+         CLK_PULSE
+         jumps 1b, 32, lt
 
-    loop:
-
-        //GPIO 2 = LOW
-        //WRITE_RTC_REG(RTC_GPIO_OUT_W1TC_REG, RTC_GPIO_OUT_DATA_W1TC_S+18, 1, 1)
-        
-        //500ms delay
-        //stage_rst
-        //1: stage_inc 1
-        //wait 32000
-        //jumps 1b, 125, lt
-
-
-        //GPIO 2 = HIGH
-        //WRITE_RTC_REG(RTC_GPIO_OUT_W1TS_REG, RTC_GPIO_OUT_DATA_W1TS_S+18, 1, 1)
-
-        //500ms delay
-        //stage_rst
-        //1: stage_inc 1
-        //wait 32000
-        //jumps 1b, 125, lt
-
-        WRITE_RTC_REG(RTC_GPIO_OUT_W1TS_REG, RTC_GPIO_OUT_DATA_W1TS_S+18, 1, 1)
-        WRITE_RTC_REG(RTC_GPIO_OUT_W1TC_REG, RTC_GPIO_OUT_DATA_W1TC_S+18, 1, 1)
-        WRITE_RTC_REG(RTC_GPIO_OUT_W1TS_REG, RTC_GPIO_OUT_DATA_W1TS_S+18, 1, 1)
-        WRITE_RTC_REG(RTC_GPIO_OUT_W1TC_REG, RTC_GPIO_OUT_DATA_W1TC_S+18, 1, 1)
-        WRITE_RTC_REG(RTC_GPIO_OUT_W1TS_REG, RTC_GPIO_OUT_DATA_W1TS_S+18, 1, 1)
-        WRITE_RTC_REG(RTC_GPIO_OUT_W1TC_REG, RTC_GPIO_OUT_DATA_W1TC_S+18, 1, 1)
-        WRITE_RTC_REG(RTC_GPIO_OUT_W1TS_REG, RTC_GPIO_OUT_DATA_W1TS_S+18, 1, 1)
-        WRITE_RTC_REG(RTC_GPIO_OUT_W1TC_REG, RTC_GPIO_OUT_DATA_W1TC_S+18, 1, 1)
-        WRITE_RTC_REG(RTC_GPIO_OUT_W1TS_REG, RTC_GPIO_OUT_DATA_W1TS_S+18, 1, 1)
-        WRITE_RTC_REG(RTC_GPIO_OUT_W1TC_REG, RTC_GPIO_OUT_DATA_W1TC_S+18, 1, 1)
-        WRITE_RTC_REG(RTC_GPIO_OUT_W1TS_REG, RTC_GPIO_OUT_DATA_W1TS_S+18, 1, 1)
-        WRITE_RTC_REG(RTC_GPIO_OUT_W1TC_REG, RTC_GPIO_OUT_DATA_W1TC_S+18, 1, 1)
-        WRITE_RTC_REG(RTC_GPIO_OUT_W1TS_REG, RTC_GPIO_OUT_DATA_W1TS_S+18, 1, 1)
-        WRITE_RTC_REG(RTC_GPIO_OUT_W1TC_REG, RTC_GPIO_OUT_DATA_W1TC_S+18, 1, 1)
-        WRITE_RTC_REG(RTC_GPIO_OUT_W1TS_REG, RTC_GPIO_OUT_DATA_W1TS_S+18, 1, 1)
-        WRITE_RTC_REG(RTC_GPIO_OUT_W1TC_REG, RTC_GPIO_OUT_DATA_W1TC_S+18, 1, 1)
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        jump loop
-
-
-
-
-
-    jump loop //retorna ao inicio do loop
+      jump main
