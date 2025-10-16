@@ -8,26 +8,17 @@
 #define CLK_LO WRITE_RTC_REG(RTC_GPIO_OUT_W1TC_REG, RTC_GPIO_OUT_DATA_W1TC_S+12, 1, 1)
 #define CLK_HI WRITE_RTC_REG(RTC_GPIO_OUT_W1TC_REG, RTC_GPIO_OUT_DATA_W1TS_S+12, 1, 1)
 #define CLK_PULSE CLK_HI; CLK_LO
+
 #define W R0
+#define MASK R1
 #define LED_IDX R1
-#define MASK R2
 #define LED_DATA R3
 
 .bss
 
-   .global variable
-variable:
-   .long 0
-
-   .global test_array
-test_array:
-   .space 64
-
-.data
-
-   .global test_array_index
-test_array_index:
-   .long 512
+   .global leds_array
+leds_array:
+   .space 32
 
 .text
 
@@ -48,7 +39,7 @@ test_array_index:
       // LEDS DATA
       move LED_IDX, 0
       1:
-         move W, test_array
+         move W, leds_array
          add W, W, LED_IDX
          ld LED_DATA, W, 0
          move MASK, 1
