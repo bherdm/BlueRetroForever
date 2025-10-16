@@ -11,6 +11,7 @@
 #define W R0
 #define LED_IDX R1
 #define MASK R2
+#define LED_DATA R3
 
 .bss
 
@@ -47,6 +48,9 @@ test_array_index:
       // LEDS DATA
       move LED_IDX, 0
       1:
+         move W, test_array
+         add W, W, LED_IDX
+         ld LED_DATA, W, 0
          move MASK, 1
          2:
             lsh MASK, MASK, 1
