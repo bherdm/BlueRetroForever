@@ -53,6 +53,15 @@ test_array_index:
          ld LED_DATA, W, 0
          move MASK, 1
          2:
+            and W, LED_DATA, MASK
+            jumpr clr_data, 0, gt
+            clr_data:
+               DATA_LO
+               jump data_done
+            set_data:
+               DATA_HI
+         data_done:
+            CLK_PULSE
             lsh MASK, MASK, 1
             move W, MASK
             jumpr 2b, 0, gt
