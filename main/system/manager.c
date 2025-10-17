@@ -177,12 +177,12 @@ static inline void set_sense_out(uint32_t pin, uint32_t state) {
 }
 
 static inline void set_port_led(uint32_t index, uint32_t state) {
-    if (state) {
-        esp_rom_gpio_connect_out_signal(led_list[index], ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_1, 0, 0);
-    }
-    else {
-        esp_rom_gpio_connect_out_signal(led_list[index], ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_2, 0, 0);
-    }
+    // if (state) {
+    //     esp_rom_gpio_connect_out_signal(led_list[index], ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_1, 0, 0);
+    // }
+    // else {
+    //     esp_rom_gpio_connect_out_signal(led_list[index], ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_2, 0, 0);
+    // }
 }
 
 static inline uint32_t get_port_led_pin(uint32_t index) {
@@ -213,34 +213,34 @@ static void internal_flag_init(void) {
 }
 
 static void port_led_pulse(uint32_t pin) {
-    if (pin) {
-        PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[pin], PIN_FUNC_GPIO);
-        gpio_set_direction(pin, GPIO_MODE_OUTPUT);
-        esp_rom_gpio_connect_out_signal(pin, ledc_periph_signal[LEDC_HIGH_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_0, 0, 0);
-    }
+    // if (pin) {
+    //     PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[pin], PIN_FUNC_GPIO);
+    //     gpio_set_direction(pin, GPIO_MODE_OUTPUT);
+    //     esp_rom_gpio_connect_out_signal(pin, ledc_periph_signal[LEDC_HIGH_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_0, 0, 0);
+    // }
 }
 
 static void set_leds_as_btn_status(uint8_t state) {
-    ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, hw_config.led_flash_on_duty_cycle, 0);
+    // ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, hw_config.led_flash_on_duty_cycle, 0);
 
-    /* Use all port LEDs */
-    for (uint32_t i = 0; i < hw_config.port_cnt; i++) {
-        uint8_t pin = led_list[i];
+    // /* Use all port LEDs */
+    // for (uint32_t i = 0; i < hw_config.port_cnt; i++) {
+    //     uint8_t pin = led_list[i];
 
-        PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[pin], PIN_FUNC_GPIO);
-        gpio_set_direction(pin, GPIO_MODE_OUTPUT);
-        if (state) {
-            esp_rom_gpio_connect_out_signal(pin, ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_1, 0, 0);
-        }
-    }
+    //     PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[pin], PIN_FUNC_GPIO);
+    //     gpio_set_direction(pin, GPIO_MODE_OUTPUT);
+    //     if (state) {
+    //         esp_rom_gpio_connect_out_signal(pin, ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_1, 0, 0);
+    //     }
+    // }
 
-    /* Use error LED as well */
-    if (state) {
-        esp_rom_gpio_connect_out_signal(err_led_pin, ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_1, 0, 0);
-    }
-    else {
-        esp_rom_gpio_connect_out_signal(err_led_pin, ledc_periph_signal[LEDC_HIGH_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_0, 0, 0);
-    }
+    // /* Use error LED as well */
+    // if (state) {
+    //     esp_rom_gpio_connect_out_signal(err_led_pin, ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_1, 0, 0);
+    // }
+    // else {
+    //     esp_rom_gpio_connect_out_signal(err_led_pin, ledc_periph_signal[LEDC_HIGH_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_0, 0, 0);
+    // }
 }
 
 static void power_on_hdl(void) {
@@ -404,8 +404,8 @@ static void boot_btn_hdl(void) {
         while (sys_mgr_get_boot_btn()) {
             hold_cnt++;
             if (hold_cnt > (hw_config.sw_io0_hold_thres_ms[state] / 10) && state < SYS_MGR_BTN_STATE3) {
-                ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, hw_config.led_flash_duty_cycle, 0);
-                ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER_1, hw_config.led_flash_hz[state]);
+                // ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, hw_config.led_flash_duty_cycle, 0);
+                // ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER_1, hw_config.led_flash_hz[state]);
                 state++;
             }
             if (hold_cnt == 3000) {
@@ -634,8 +634,8 @@ void sys_mgr_init(uint32_t package) {
         .hpoint     = 0,
         .timer_sel  = LEDC_TIMER_1,
     };
-    ledc_timer_config(&ledc_timer);
-    ledc_channel_config(&ledc_channel);
+    // ledc_timer_config(&ledc_timer);
+    // ledc_channel_config(&ledc_channel);
 
     while (wired_adapter.system_id <= WIRED_AUTO) {
         boot_btn_hdl();
@@ -706,12 +706,12 @@ void sys_mgr_init(uint32_t package) {
 
     hw_config_patch();
 
-    err_led_cfg_update();
+    // err_led_cfg_update();
 
-    led_init_cnt = hw_config.port_cnt;
-    if (wired_adapter.system_id == PSX || wired_adapter.system_id == PS2) {
-        led_init_cnt = 4;
-    }
+    // led_init_cnt = hw_config.port_cnt;
+    // if (wired_adapter.system_id == PSX || wired_adapter.system_id == PS2) {
+    //     led_init_cnt = 4;
+    // }
 
 #ifdef CONFIG_BLUERETRO_HW2
     for (uint32_t i = 0; i < hw_config.port_cnt; i++) {
@@ -723,29 +723,29 @@ void sys_mgr_init(uint32_t package) {
 #endif
 
 #ifndef CONFIG_BLUERETRO_HW2
-    for (uint32_t i = 0; i < sizeof(led_list); i++) {
-        led_list[i] = hw_config.hw1_ports_led_pins[i];
-    }
+    // for (uint32_t i = 0; i < sizeof(led_list); i++) {
+    //     led_list[i] = hw_config.hw1_ports_led_pins[i];
+    // }
 #endif
 
     io_conf.mode = GPIO_MODE_OUTPUT;
-    for (uint32_t i = 0; i < led_init_cnt; i++) {
-#ifdef CONFIG_BLUERETRO_HW2
-        /* Skip pin 15 if alt sense pin are used */
-        if (sense_list[0] == led_list[i]) {
-            continue;
-        }
-#endif
-        gpio_set_level(led_list[i], 0);
-        io_conf.pin_bit_mask = 1ULL << led_list[i];
-        gpio_config(&io_conf);
+//     for (uint32_t i = 0; i < led_init_cnt; i++) {
+// #ifdef CONFIG_BLUERETRO_HW2
+//         /* Skip pin 15 if alt sense pin are used */
+//         if (sense_list[0] == led_list[i]) {
+//             continue;
+//         }
+// #endif
+//         gpio_set_level(led_list[i], 0);
+//         io_conf.pin_bit_mask = 1ULL << led_list[i];
+//         gpio_config(&io_conf);
 
-        if (i < hw_config.port_cnt) {
-            /* Can't use GPIO mode on port LED as some wired driver overwrite whole GPIO port */
-            /* Use unused LEDC channel 2 to force output low */
-            esp_rom_gpio_connect_out_signal(led_list[i], ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_2, 0, 0);
-        }
-    }
+//         if (i < hw_config.port_cnt) {
+//             /* Can't use GPIO mode on port LED as some wired driver overwrite whole GPIO port */
+//             /* Use unused LEDC channel 2 to force output low */
+//             esp_rom_gpio_connect_out_signal(led_list[i], ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_2, 0, 0);
+//         }
+//     }
 
 #ifdef CONFIG_BLUERETRO_HW2
     if (hw_config.power_pin_od) {

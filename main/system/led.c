@@ -83,25 +83,25 @@ void err_led_init(uint32_t package) {
 }
 
 void err_led_cfg_update(void) {
-    ledc_set_freq(LEDC_HIGH_SPEED_MODE, LEDC_TIMER_0, hw_config.led_pulse_hz);
+    //ledc_set_freq(LEDC_HIGH_SPEED_MODE, LEDC_TIMER_0, hw_config.led_pulse_hz);
 }
 
 void err_led_set(void) {
-    vTaskSuspend(err_led_task_hdl);
-    ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, hw_config.led_pulse_on_duty_cycle, 0);
-    atomic_set_bit(&led_flags, ERR_LED_SET);
+    // vTaskSuspend(err_led_task_hdl);
+    // ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, hw_config.led_pulse_on_duty_cycle, 0);
+    // atomic_set_bit(&led_flags, ERR_LED_SET);
 }
 
 void err_led_clear(void) {
     /* When error is set it stay on until power cycle */
-    if (!atomic_test_bit(&led_flags, ERR_LED_SET)) {
-        vTaskSuspend(err_led_task_hdl);
-        ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, hw_config.led_pulse_off_duty_cycle, 0);
-    }
+    // if (!atomic_test_bit(&led_flags, ERR_LED_SET)) {
+    //     vTaskSuspend(err_led_task_hdl);
+    //     ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, hw_config.led_pulse_off_duty_cycle, 0);
+    // }
 }
 
 void err_led_pulse(void) {
-    vTaskResume(err_led_task_hdl);
+    //vTaskResume(err_led_task_hdl);
 }
 
 uint32_t err_led_get_pin(void) {
