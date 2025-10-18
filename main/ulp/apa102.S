@@ -56,6 +56,7 @@ leds_array:
             rsh MASK, MASK, 1
             move W, MASK
             jumpr 2b, 0, gt
+         
          add LED_IDX, LED_IDX, 1
          move W, LED_IDX
          jumpr 1b, 32, lt

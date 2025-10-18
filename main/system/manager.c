@@ -32,7 +32,7 @@
 #ifdef CONFIG_BLUERETRO_VENDOR_LBI
 #define BOOT_BTN_PIN 0
 
-#define RESET_PIN 15
+#define RESET_PIN 14
 
 #define POWER_ON_PIN 22
 #define POWER_OFF_PIN 21

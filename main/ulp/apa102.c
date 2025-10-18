@@ -21,12 +21,10 @@ void apa102_init(void)
     clk_src = rtc_clk_fast_freq_get();
     printf("STC CLK SRC: %d\n", clk_src);
 
-    rtc_gpio_init(GPIO_NUM_13);
-    rtc_gpio_set_direction(GPIO_NUM_13, RTC_GPIO_MODE_OUTPUT_ONLY);
-    rtc_gpio_init(GPIO_NUM_14);
-    rtc_gpio_set_direction(GPIO_NUM_14, RTC_GPIO_MODE_OUTPUT_ONLY);
-    rtc_gpio_set_level(GPIO_NUM_13, 1);
-    rtc_gpio_set_level(GPIO_NUM_14, 1);
+    rtc_gpio_init(GPIO_NUM_2);
+    rtc_gpio_set_direction(GPIO_NUM_2, RTC_GPIO_MODE_OUTPUT_ONLY);
+    rtc_gpio_init(GPIO_NUM_4);
+    rtc_gpio_set_direction(GPIO_NUM_4, RTC_GPIO_MODE_OUTPUT_ONLY);
 
     ulp_load_binary(0, ulp_bin_start, (ulp_bin_end - ulp_bin_start) / sizeof(uint32_t));
     ulp_run((&ulp_main - RTC_SLOW_MEM));
