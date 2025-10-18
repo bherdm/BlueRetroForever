@@ -39,7 +39,7 @@ void apa102_init(void)
 
     for (uint32_t i = 0; i < 16; i++) {
         leds_array[i].brightness_blue = 0xEF00;
-        leds_array[i].green_red = 0x0A00;
+        leds_array[i].green_red = 0x0000;
     }
 }
 
@@ -47,10 +47,34 @@ void apa102_update(void)
 {
     static bool dir = true;
     static uint8_t brightness = 6;
-    for (uint32_t i = 0; i < 16; i++) {
-        leds_array[i].green_red &= ~APA102_GREEN_MASK;
-        leds_array[i].green_red |= brightness << 8;
-    }
+
+    leds_array[0].brightness_blue &= ~APA102_BLUE_MASK;
+    leds_array[0].brightness_blue |= brightness;
+    leds_array[1].brightness_blue &= ~APA102_BLUE_MASK;
+    leds_array[1].brightness_blue |= brightness;
+
+    leds_array[2].green_red &= ~APA102_RED_MASK;
+    leds_array[2].green_red |= brightness;
+    leds_array[3].green_red &= ~APA102_RED_MASK;
+    leds_array[3].green_red |= brightness;
+
+    leds_array[4].green_red &= ~APA102_GREEN_MASK;
+    leds_array[4].green_red |= brightness << 8;
+    leds_array[5].green_red &= ~APA102_GREEN_MASK;
+    leds_array[5].green_red |= brightness << 8;
+
+    leds_array[6].brightness_blue &= ~APA102_BLUE_MASK;
+    leds_array[6].brightness_blue |= brightness;
+    leds_array[7].brightness_blue &= ~APA102_BLUE_MASK;
+    leds_array[7].brightness_blue |= brightness;
+    leds_array[6].green_red &= ~APA102_RED_MASK;
+    leds_array[6].green_red |= brightness;
+    leds_array[7].green_red &= ~APA102_RED_MASK;
+    leds_array[7].green_red |= brightness;
+
+    leds_array[8].green_red = 0;
+    leds_array[8].green_red |= brightness | ((brightness << 5) & 0xFF00);
+
     if (dir) {
         brightness += 3;
     }
