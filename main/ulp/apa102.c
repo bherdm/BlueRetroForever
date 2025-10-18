@@ -21,10 +21,6 @@ void apa102_init(void)
     clk_src = rtc_clk_fast_freq_get();
     printf("STC CLK SRC: %d\n", clk_src);
 
-    for (uint32_t i = 0; i < 32; i++) {
-        (&ulp_leds_array)[i] = i | (~(i << 8) & 0xFF00);
-    }
-
     rtc_gpio_init(GPIO_NUM_13);
     rtc_gpio_set_direction(GPIO_NUM_13, RTC_GPIO_MODE_OUTPUT_ONLY);
     rtc_gpio_init(GPIO_NUM_14);
@@ -35,11 +31,11 @@ void apa102_init(void)
     ulp_load_binary(0, ulp_bin_start, (ulp_bin_end - ulp_bin_start) / sizeof(uint32_t));
     ulp_run((&ulp_main - RTC_SLOW_MEM));
 
+    for (uint32_t i = 0; i < 32; i++) {
+        (&ulp_leds_array)[i] = 0xEF0A;
+    }
+
     // uint64_t sleep_time = 86400*1000000;
     // esp_sleep_enable_timer_wakeup(sleep_time);
     // esp_deep_sleep_start();
-
-    for (uint32_t i = 0; i < 32; i++) {
-        (&ulp_leds_array)[i] = i | (~(i << 8) & 0xFF00);
-    }
 }

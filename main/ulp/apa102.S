@@ -42,7 +42,7 @@ leds_array:
          move W, leds_array
          add W, W, LED_IDX
          ld LED_DATA, W, 0
-         move MASK, 1
+         move MASK, 0x8000
          2:
             and W, LED_DATA, MASK
             jumpr set_data, 0, gt
@@ -53,7 +53,7 @@ leds_array:
                DATA_HI
          data_done:
             CLK_PULSE
-            lsh MASK, MASK, 1
+            rsh MASK, MASK, 1
             move W, MASK
             jumpr 2b, 0, gt
          add LED_IDX, LED_IDX, 1
