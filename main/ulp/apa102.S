@@ -11,14 +11,14 @@
 
 #define W R0
 #define MASK R1
-#define LED_IDX R1
+#define LED_IDX R2
 #define LED_DATA R3
 
 .bss
 
    .global leds_array
 leds_array:
-   .space 32
+   .space 128
 
 .text
 
@@ -45,7 +45,7 @@ leds_array:
          move MASK, 1
          2:
             and W, LED_DATA, MASK
-            jumpr clr_data, 0, gt
+            jumpr set_data, 0, gt
             clr_data:
                DATA_LO
                jump data_done
