@@ -25,10 +25,12 @@ void apa102_init(void)
         (&ulp_leds_array)[i] = i | (~(i << 8) & 0xFF00);
     }
 
-    rtc_gpio_init(GPIO_NUM_2);
-    rtc_gpio_set_direction(GPIO_NUM_2, RTC_GPIO_MODE_OUTPUT_ONLY);
-    rtc_gpio_init(GPIO_NUM_4);
-    rtc_gpio_set_direction(GPIO_NUM_4, RTC_GPIO_MODE_OUTPUT_ONLY);
+    rtc_gpio_init(GPIO_NUM_13);
+    rtc_gpio_set_direction(GPIO_NUM_13, RTC_GPIO_MODE_OUTPUT_ONLY);
+    rtc_gpio_init(GPIO_NUM_14);
+    rtc_gpio_set_direction(GPIO_NUM_14, RTC_GPIO_MODE_OUTPUT_ONLY);
+    rtc_gpio_set_level(GPIO_NUM_13, 1);
+    rtc_gpio_set_level(GPIO_NUM_14, 1);
 
     ulp_load_binary(0, ulp_bin_start, (ulp_bin_end - ulp_bin_start) / sizeof(uint32_t));
     ulp_run((&ulp_main - RTC_SLOW_MEM));
@@ -36,4 +38,8 @@ void apa102_init(void)
     // uint64_t sleep_time = 86400*1000000;
     // esp_sleep_enable_timer_wakeup(sleep_time);
     // esp_deep_sleep_start();
+
+    for (uint32_t i = 0; i < 32; i++) {
+        (&ulp_leds_array)[i] = i | (~(i << 8) & 0xFF00);
+    }
 }

@@ -699,7 +699,7 @@ maple_abort:
 void maple_init(uint32_t package)
 {
 #ifdef CONFIG_BLUERETRO_VENDOR_LBI
-    port_cnt = 4;
+    port_cnt = 3;
 #endif
 #ifdef CONFIG_BLUERETRO_SYSTEM_DC
     switch (package) {
