@@ -27,6 +27,7 @@
 #include "system/fs.h"
 #include "system/led.h"
 #include "bare_metal_app_cpu.h"
+#include "ulp/apa102.h"
 #include "manager.h"
 
 #ifdef CONFIG_BLUERETRO_VENDOR_LBI
@@ -471,6 +472,7 @@ static void sys_mgr_task(void *arg) {
 
     while (1) {
         boot_btn_hdl();
+        apa102_update();
 
         /* Fetch system cmd to execute */
         if (cmd_q_hdl) {

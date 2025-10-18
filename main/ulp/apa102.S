@@ -46,12 +46,11 @@ leds_array:
          2:
             and W, LED_DATA, MASK
             jumpr set_data, 0, gt
-            clr_data:
-               DATA_LO
-               jump data_done
-            set_data:
-               DATA_HI
-         data_done:
+            DATA_LO
+            jump clk_pulse
+         set_data:
+            DATA_HI
+         clk_pulse:
             CLK_PULSE
             rsh MASK, MASK, 1
             move W, MASK

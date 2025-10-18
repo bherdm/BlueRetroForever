@@ -7,5 +7,6 @@
 #define _APA102_H_
 
 void apa102_init(void);
+void apa102_update(void);
 
 #endif /* _APA102_H_ */
