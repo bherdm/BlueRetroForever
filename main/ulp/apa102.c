@@ -38,7 +38,7 @@ void apa102_init(void)
     ulp_run((&ulp_main - RTC_SLOW_MEM));
 
     for (uint32_t i = 0; i < 16; i++) {
-        leds_array[i].brightness_blue = 0xEF00;
+        leds_array[i].brightness_blue = 0xE300;
         leds_array[i].green_red = 0x0000;
     }
 }
