@@ -32,9 +32,9 @@
 #define N64_BIT_PERIOD_TICKS 8
 #define GC_BIT_PERIOD_TICKS 10
 
-#define N64_MOUSE 0x0002
-#define N64_CTRL 0x0005
-#define N64_KB 0x0200
+#define N64_MOUSE 0x0200
+#define N64_CTRL 0x0500
+#define N64_KB 0x0002
 
 #define N64_SLOT_EMPTY 0x02
 #define N64_SLOT_OCCUPY 0x01
@@ -253,7 +253,8 @@ static void n64_kb_cmd_hdlr(uint8_t channel, uint8_t port, uint16_t item) {
             break;
         default:
             /* 0x00 & 0xFF cmds goes here, corrupt cmd too! This help avoid ctrl detection error */
-            *(uint16_t *)buf = N64_KB;
+            const uint16_t id_be = sys_cpu_to_be16(N64_KB);
+            memcpy(buf, &id_be, sizeof(id_be));
             buf[2] = N64_SLOT_EMPTY;
 
             nsi_bytes_to_items_crc(channel * RMT_MEM_ITEM_NUM, buf, 3, &crc, STOP_BIT_2US);
@@ -279,7 +280,8 @@ static void n64_mouse_cmd_hdlr(uint8_t channel, uint8_t port, uint16_t item) {
             break;
         default:
             /* 0x00 & 0xFF cmds goes here, corrupt cmd too! This help avoid ctrl detection error */
-            *(uint16_t *)buf = N64_MOUSE;
+            const uint16_t id_be = sys_cpu_to_be16(N64_MOUSE);
+            memcpy(buf, &id_be, sizeof(id_be));
             buf[2] = N64_SLOT_EMPTY;
 
             nsi_bytes_to_items_crc(channel * RMT_MEM_ITEM_NUM, buf, 3, &crc, STOP_BIT_2US);
@@ -377,7 +379,8 @@ static void n64_pad_cmd_hdlr(uint8_t channel, uint8_t port, uint16_t item) {
             break;
         default:
             /* 0x00 & 0xFF cmds goes here, corrupt cmd too! This help avoid ctrl detection error */
-            *(uint16_t *)buf = N64_CTRL;
+            const uint16_t id_be = sys_cpu_to_be16(N64_CTRL);
+            memcpy(buf, &id_be, sizeof(id_be));
             if (config.out_cfg[channel].acc_mode > ACC_NONE && config.out_cfg[channel].acc_mode < ACC_BOTH) {
                 if (ctrl_acc_update[channel] > 1) {
                     buf[2] = N64_SLOT_EMPTY;
