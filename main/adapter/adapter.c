@@ -23,6 +23,7 @@
 #include "macro.h"
 #include "bluetooth/host.h"
 #include "adapter/wired/n64_runtime.h"
+#include "adapter/wired/n64.h"
 #include "tests/cmds.h"
 
 const uint32_t hat_to_ld_btns[16] = {
@@ -441,6 +442,40 @@ void adapter_bridge(struct bt_data *bt_data) {
             if (wired_meta_init(ctrl_output)) {
                 /* Unsupported system */
                 return;
+            }
+
+            /*
+             * N64 DEV_KB expects raw keyboard scancodes.
+             * Do not apply user mapping tables (which may remap keys to PAD_*).
+             */
+            if (wired_adapter.system_id == N64) {
+                uint8_t out_idx = bt_data->base.pids->out_idx;
+                if (out_idx < 4) {
+                    int32_t dev_mode = config.out_cfg[out_idx].dev_mode;
+#ifdef CONFIG_BLUERETRO_N64_AUTO_ID_SWITCHING
+                    dev_mode = n64_runtime_get_active_mode(out_idx, dev_mode);
+#endif
+
+                    /* Ensure meta matches the runtime-selected dev_mode. */
+                    n64_apply_meta(dev_mode, &ctrl_output[out_idx]);
+
+                    if (dev_mode == DEV_KB) {
+                        struct wired_ctrl *out = &ctrl_output[out_idx];
+
+                        for (uint32_t w = 0; w < 4; w++) {
+                            out->btns[w].value = ctrl_input->btns[w].value;
+                            memset(out->btns[w].cnt_mask, 0, sizeof(out->btns[w].cnt_mask));
+                            out->map_mask[w] = ctrl_input->mask[w] & out->mask[w];
+                        }
+
+                        adapter_out_mask[out_idx] = out_mask = BIT(out_idx);
+
+                        out->index = out_idx;
+                        sys_macro_hdl(out, &bt_data->base.flags[PAD]);
+                        wired_from_generic(dev_mode, out, &wired_adapter.data[out_idx]);
+                        return;
+                    }
+                }
             }
 
             adapter_out_mask[bt_data->base.pids->out_idx] =

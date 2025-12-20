@@ -162,29 +162,35 @@ void IRAM_ATTR n64_init_buffer(int32_t dev_mode, struct wired_data *wired_data) 
     }
 }
 
+void n64_apply_meta(int32_t dev_mode, struct wired_ctrl *ctrl_data) {
+    switch (dev_mode) {
+        case DEV_KB:
+            ctrl_data->mask = n64_kb_mask;
+            ctrl_data->desc = n64_kb_desc;
+            break;
+        case DEV_MOUSE:
+            ctrl_data->mask = n64_mouse_mask;
+            ctrl_data->desc = n64_mouse_desc;
+            for (uint32_t j = 0; j < N64_AXES_MAX; j++) {
+                ctrl_data->axes[j + 2].meta = &n64_mouse_axes_meta[j];
+            }
+            break;
+        case DEV_PAD:
+        default:
+            ctrl_data->mask = n64_mask;
+            ctrl_data->desc = n64_desc;
+            for (uint32_t j = 0; j < N64_AXES_MAX; j++) {
+                ctrl_data->axes[j].meta = &n64_axes_meta[j];
+            }
+            break;
+    }
+}
+
 void n64_meta_init(struct wired_ctrl *ctrl_data) {
     memset((void *)ctrl_data, 0, sizeof(*ctrl_data)*4);
 
     for (uint32_t i = 0; i < WIRED_MAX_DEV; i++) {
-        for (uint32_t j = 0; j < N64_AXES_MAX; j++) {
-            switch (config.out_cfg[i].dev_mode) {
-                case DEV_KB:
-                    ctrl_data[i].mask = n64_kb_mask;
-                    ctrl_data[i].desc = n64_kb_desc;
-                    break;
-                case DEV_MOUSE:
-                    ctrl_data[i].mask = n64_mouse_mask;
-                    ctrl_data[i].desc = n64_mouse_desc;
-                    ctrl_data[i].axes[j + 2].meta = &n64_mouse_axes_meta[j];
-                    break;
-                case DEV_PAD:
-                default:
-                    ctrl_data[i].mask = n64_mask;
-                    ctrl_data[i].desc = n64_desc;
-                    ctrl_data[i].axes[j].meta = &n64_axes_meta[j];
-                    break;
-            }
-        }
+        n64_apply_meta(config.out_cfg[i].dev_mode, &ctrl_data[i]);
     }
 }
 
