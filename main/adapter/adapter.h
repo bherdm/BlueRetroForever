@@ -586,7 +586,6 @@ uint32_t axis_to_btn_mask(uint8_t axis);
 uint32_t axis_to_btn_id(uint8_t axis);
 int8_t btn_sign(uint32_t polarity, uint8_t btn_id);
 void adapter_init_buffer(uint8_t wired_id);
-void adapter_reinit_output(uint8_t wired_id);
 void adapter_bridge(struct bt_data *bt_data);
 void adapter_fb_stop_timer_start(uint8_t dev_id, uint64_t dur_us);
 void adapter_fb_stop_timer_stop(uint8_t dev_id);
