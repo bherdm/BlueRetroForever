@@ -295,6 +295,33 @@ static void bt_host_task(void *param) {
             }
         }
 
+        /* N64: track desired mode based on what's actually connected.
+         * Apply it only when the console re-identifies (0x00/0xFF), signaled via n64_port_reinit.
+         */
+        if (wired_adapter.system_id == N64) {
+            for (uint8_t port = 0; port < 4; port++) {
+                uint8_t new_desired = DEV_PAD;
+                struct bt_dev *device = NULL;
+
+                if (bt_host_get_active_dev_from_out_idx(port, &device) >= 0 && device) {
+                    if (device->ids.report_type == KB) {
+                        new_desired = DEV_KB;
+                    }
+                    else if (device->ids.report_type == MOUSE) {
+                        new_desired = DEV_MOUSE;
+                    }
+                }
+
+                n64_port_desired_mode[port] = new_desired;
+
+                if (n64_port_reinit[port]) {
+                    n64_port_reinit[port] = 0;
+                    adapter_init_buffer(port);
+                    memset((void *)wired_adapter.data[port].output, 0, sizeof(wired_adapter.data[port].output));
+                }
+            }
+        }
+
         /* Update turbo mask for parallel system */
         wired_para_turbo_mask_hdlr();
 
