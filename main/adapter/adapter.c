@@ -473,7 +473,6 @@ void adapter_bridge(struct bt_data *bt_data) {
 
 void adapter_reinit_output(uint8_t wired_id) {
     adapter_init_buffer(wired_id);
-    memset((void *)wired_adapter.data[wired_id].output, 0, sizeof(wired_adapter.data[wired_id].output));
 }
 
 void adapter_fb_stop_timer_start(uint8_t dev_id, uint64_t dur_us) {
