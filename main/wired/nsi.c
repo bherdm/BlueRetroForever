@@ -604,7 +604,20 @@ static unsigned n64_isr(unsigned cause) {
                     ctrl_acc_mode[channel] = config.out_cfg[channel].acc_mode;
                 }
 
-                switch (config.out_cfg[channel].dev_mode) {
+                uint8_t dev_mode = config.out_cfg[channel].dev_mode;
+                if (wired_adapter.system_id == N64 && channel < 4) {
+                    /* Only switch device type at an identify/reset boundary. */
+                    if (buf[0] == 0x00 || buf[0] == 0xFF) {
+                        uint8_t desired = n64_port_desired_mode[channel];
+                        if (n64_port_dev_mode[channel] != desired) {
+                            n64_port_dev_mode[channel] = desired;
+                            n64_port_reinit[channel] = 1;
+                        }
+                    }
+                    dev_mode = n64_port_dev_mode[channel];
+                }
+
+                switch (dev_mode) {
                     case DEV_KB:
                         n64_kb_cmd_hdlr(channel, channel, item);
                         break;

@@ -45,6 +45,9 @@ struct wired_ctrl *ctrl_output;
 struct generic_fb fb_input;
 struct bt_adapter bt_adapter = {0};
 struct wired_adapter wired_adapter = {0};
+volatile uint8_t n64_port_dev_mode[4] = {DEV_PAD, DEV_PAD, DEV_PAD, DEV_PAD};
+volatile uint8_t n64_port_desired_mode[4] = {DEV_PAD, DEV_PAD, DEV_PAD, DEV_PAD};
+volatile uint8_t n64_port_reinit[4] = {0, 0, 0, 0};
 static uint32_t adapter_out_mask[WIRED_MAX_DEV] = {0};
 static bool rumble_mute = false;
 
@@ -409,8 +412,15 @@ int8_t btn_sign(uint32_t polarity, uint8_t btn_id) {
 
 void IRAM_ATTR adapter_init_buffer(uint8_t wired_id) {
     if (wired_adapter.system_id != WIRED_AUTO) {
+        int32_t dev_mode = config.out_cfg[wired_id].dev_mode;
+
+        /* For N64, runtime dev_mode is presence-driven (default PAD). */
+        if (wired_adapter.system_id == N64 && wired_id < 4) {
+            dev_mode = n64_port_dev_mode[wired_id];
+        }
+
         wired_adapter.data[wired_id].index = wired_id;
-        wired_init_buffer(config.out_cfg[wired_id].dev_mode, &wired_adapter.data[wired_id]);
+        wired_init_buffer(dev_mode, &wired_adapter.data[wired_id]);
     }
 }
 
@@ -444,8 +454,15 @@ void adapter_bridge(struct bt_data *bt_data) {
             sys_macro_hdl(&ctrl_output[bt_data->base.pids->out_idx], &bt_data->base.flags[PAD]);
             for (uint32_t i = 0; out_mask; i++, out_mask >>= 1) {
                 if (out_mask & 0x1) {
+                    int32_t dev_mode = config.out_cfg[i].dev_mode;
+
+                    /* For N64, match output formatting to runtime dev_mode. */
+                    if (wired_adapter.system_id == N64 && i < 4) {
+                        dev_mode = n64_port_dev_mode[i];
+                    }
+
                     ctrl_output[i].index = i;
-                    wired_from_generic(config.out_cfg[i].dev_mode, &ctrl_output[i], &wired_adapter.data[i]);
+                    wired_from_generic(dev_mode, &ctrl_output[i], &wired_adapter.data[i]);
                 }
             }
         }
