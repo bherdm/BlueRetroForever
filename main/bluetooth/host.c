@@ -318,7 +318,7 @@ static void bt_host_task(void *param) {
                 n64_runtime_set_desired_mode(port, new_desired);
 
                 if (n64_runtime_take_reinit(port)) {
-                    adapter_reinit_output(port);
+                    adapter_init_buffer(port);
                 }
             }
 #endif
