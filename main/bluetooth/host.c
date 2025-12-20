@@ -31,6 +31,7 @@
 #include "adapter/memory_card.h"
 #include "adapter/wired/wired.h"
 #include "adapter/hid_parser.h"
+#include "adapter/wired/n64_runtime.h"
 #include "bluetooth/hidp/ps.h"
 
 #define BT_TX 0
@@ -312,12 +313,11 @@ static void bt_host_task(void *param) {
                     }
                 }
 
-                n64_port_desired_mode[port] = new_desired;
 
-                if (n64_port_reinit[port]) {
-                    n64_port_reinit[port] = 0;
-                    adapter_init_buffer(port);
-                    memset((void *)wired_adapter.data[port].output, 0, sizeof(wired_adapter.data[port].output));
+                n64_runtime_set_desired_mode(port, new_desired);
+
+                if (n64_runtime_take_reinit(port)) {
+                    adapter_reinit_output(port);
                 }
             }
         }

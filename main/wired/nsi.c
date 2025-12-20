@@ -18,6 +18,7 @@
 #include "adapter/config.h"
 #include "adapter/memory_card.h"
 #include "adapter/wired/n64.h"
+#include "adapter/wired/n64_runtime.h"
 #include "adapter/wired/gc.h"
 #include "system/gpio.h"
 #include "system/intr.h"
@@ -606,15 +607,8 @@ static unsigned n64_isr(unsigned cause) {
 
                 uint8_t dev_mode = config.out_cfg[channel].dev_mode;
                 if (wired_adapter.system_id == N64 && channel < 4) {
-                    /* Only switch device type at an identify/reset boundary. */
-                    if (buf[0] == 0x00 || buf[0] == 0xFF) {
-                        uint8_t desired = n64_port_desired_mode[channel];
-                        if (n64_port_dev_mode[channel] != desired) {
-                            n64_port_dev_mode[channel] = desired;
-                            n64_port_reinit[channel] = 1;
-                        }
-                    }
-                    dev_mode = n64_port_dev_mode[channel];
+                    n64_runtime_on_identify_cmd(channel, buf[0]);
+                    dev_mode = (uint8_t)n64_runtime_get_active_mode(channel, dev_mode);
                 }
 
                 switch (dev_mode) {
