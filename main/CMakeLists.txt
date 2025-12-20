@@ -18,6 +18,7 @@ set(cov_srcs
     "adapter/wired/pcfx.c"
     "adapter/wired/jvs.c"
     "adapter/wired/n64.c"
+    "adapter/wired/n64_runtime.c"
     "adapter/wired/dc.c"
     "adapter/wired/gc.c"
     "adapter/wired/ps.c"

@@ -18,6 +18,7 @@
 #include "adapter/config.h"
 #include "adapter/memory_card.h"
 #include "adapter/wired/n64.h"
+#include "adapter/wired/n64_runtime.h"
 #include "adapter/wired/gc.h"
 #include "system/gpio.h"
 #include "system/intr.h"
@@ -604,7 +605,15 @@ static unsigned n64_isr(unsigned cause) {
                     ctrl_acc_mode[channel] = config.out_cfg[channel].acc_mode;
                 }
 
-                switch (config.out_cfg[channel].dev_mode) {
+                uint8_t dev_mode = config.out_cfg[channel].dev_mode;
+                if (wired_adapter.system_id == N64 && channel < 4) {
+#ifdef CONFIG_BLUERETRO_N64_AUTO_ID_SWITCHING
+                    n64_runtime_on_identify_cmd(channel, buf[0]);
+                    dev_mode = (uint8_t)n64_runtime_get_active_mode(channel, dev_mode);
+#endif
+                }
+
+                switch (dev_mode) {
                     case DEV_KB:
                         n64_kb_cmd_hdlr(channel, channel, item);
                         break;

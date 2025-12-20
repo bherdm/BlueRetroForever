@@ -22,6 +22,7 @@
 #include "wireless/wireless.h"
 #include "macro.h"
 #include "bluetooth/host.h"
+#include "adapter/wired/n64_runtime.h"
 #include "tests/cmds.h"
 
 const uint32_t hat_to_ld_btns[16] = {
@@ -409,8 +410,17 @@ int8_t btn_sign(uint32_t polarity, uint8_t btn_id) {
 
 void IRAM_ATTR adapter_init_buffer(uint8_t wired_id) {
     if (wired_adapter.system_id != WIRED_AUTO) {
+        int32_t dev_mode = config.out_cfg[wired_id].dev_mode;
+
+        /* For N64, runtime dev_mode is presence-driven (default PAD). */
+        if (wired_adapter.system_id == N64 && wired_id < 4) {
+#ifdef CONFIG_BLUERETRO_N64_AUTO_ID_SWITCHING
+            dev_mode = n64_runtime_get_active_mode(wired_id, dev_mode);
+#endif
+        }
+
         wired_adapter.data[wired_id].index = wired_id;
-        wired_init_buffer(config.out_cfg[wired_id].dev_mode, &wired_adapter.data[wired_id]);
+        wired_init_buffer(dev_mode, &wired_adapter.data[wired_id]);
     }
 }
 
@@ -444,8 +454,17 @@ void adapter_bridge(struct bt_data *bt_data) {
             sys_macro_hdl(&ctrl_output[bt_data->base.pids->out_idx], &bt_data->base.flags[PAD]);
             for (uint32_t i = 0; out_mask; i++, out_mask >>= 1) {
                 if (out_mask & 0x1) {
+                    int32_t dev_mode = config.out_cfg[i].dev_mode;
+
+                    /* For N64, match output formatting to runtime dev_mode. */
+                    if (wired_adapter.system_id == N64 && i < 4) {
+#ifdef CONFIG_BLUERETRO_N64_AUTO_ID_SWITCHING
+                        dev_mode = n64_runtime_get_active_mode(i, dev_mode);
+#endif
+                    }
+
                     ctrl_output[i].index = i;
-                    wired_from_generic(config.out_cfg[i].dev_mode, &ctrl_output[i], &wired_adapter.data[i]);
+                    wired_from_generic(dev_mode, &ctrl_output[i], &wired_adapter.data[i]);
                 }
             }
         }
