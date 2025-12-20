@@ -414,7 +414,9 @@ void IRAM_ATTR adapter_init_buffer(uint8_t wired_id) {
 
         /* For N64, runtime dev_mode is presence-driven (default PAD). */
         if (wired_adapter.system_id == N64 && wired_id < 4) {
+#ifdef CONFIG_BLUERETRO_N64_AUTO_ID_SWITCHING
             dev_mode = n64_runtime_get_active_mode(wired_id, dev_mode);
+#endif
         }
 
         wired_adapter.data[wired_id].index = wired_id;
@@ -456,7 +458,9 @@ void adapter_bridge(struct bt_data *bt_data) {
 
                     /* For N64, match output formatting to runtime dev_mode. */
                     if (wired_adapter.system_id == N64 && i < 4) {
+#ifdef CONFIG_BLUERETRO_N64_AUTO_ID_SWITCHING
                         dev_mode = n64_runtime_get_active_mode(i, dev_mode);
+#endif
                     }
 
                     ctrl_output[i].index = i;

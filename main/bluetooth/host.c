@@ -300,6 +300,7 @@ static void bt_host_task(void *param) {
          * Apply it only when the console re-identifies (0x00/0xFF), signaled via n64_port_reinit.
          */
         if (wired_adapter.system_id == N64) {
+    #ifdef CONFIG_BLUERETRO_N64_AUTO_ID_SWITCHING
             for (uint8_t port = 0; port < 4; port++) {
                 uint8_t new_desired = DEV_PAD;
                 struct bt_dev *device = NULL;
@@ -320,6 +321,7 @@ static void bt_host_task(void *param) {
                     adapter_reinit_output(port);
                 }
             }
+#endif
         }
 
         /* Update turbo mask for parallel system */

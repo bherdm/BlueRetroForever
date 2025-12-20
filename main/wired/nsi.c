@@ -607,8 +607,10 @@ static unsigned n64_isr(unsigned cause) {
 
                 uint8_t dev_mode = config.out_cfg[channel].dev_mode;
                 if (wired_adapter.system_id == N64 && channel < 4) {
+#ifdef CONFIG_BLUERETRO_N64_AUTO_ID_SWITCHING
                     n64_runtime_on_identify_cmd(channel, buf[0]);
                     dev_mode = (uint8_t)n64_runtime_get_active_mode(channel, dev_mode);
+#endif
                 }
 
                 switch (dev_mode) {

@@ -130,6 +130,20 @@ menu "BlueRetro"
 
     endchoice
 
+    config BLUERETRO_N64_AUTO_ID_SWITCHING
+        bool "N64: auto device identity switching (opt-out)"
+        default y
+        help
+            When enabled, BlueRetro will advertise itself as a controller by default on N64,
+            but will switch the reported Joybus device type (controller/keyboard/mouse) when
+            an actual Bluetooth device of that type is connected.
+
+            For compatibility, the active device type only changes at an identify/reset
+            boundary (Joybus command 0x00 / 0xFF).
+
+            Disable this if you want BlueRetro to always use the configured output device
+            type (config.out_cfg[].dev_mode) and never switch dynamically.
+
     menu "Debug"
 
         config BLUERETRO_QEMU
