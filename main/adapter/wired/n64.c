@@ -111,10 +111,10 @@ static const uint16_t n64_kb_scancode[KBM_MAX] = {
  /* KB_1, KB_2, KB_3, KB_4, KB_5, KB_6, KB_7, KB_8 */
     0x050C, 0x0505, 0x0506, 0x0507, 0x0508, 0x0509, 0x0609, 0x0608,
  /* KB_9, KB_0, KB_BACKSPACE, KB_TAB, KB_MINUS, KB_EQUAL, KB_LEFTBRACE, KB_RIGHTBRACE */
-    0x0607, 0x0606, 0x060D, 0x010D, 0x0605, 0x060C, 0x040C, 0x0604,
+     0x0607, 0x0606, 0x060D, 0x010D, 0x0410, 0x060C, 0x040C, 0x0604,
 
  /* KB_BACKSLASH, KB_SEMICOLON, KB_APOSTROPHE, KB_GRAVE, KB_COMMA, KB_DOT, KB_SLASH, KB_CAPSLOCK */
-    0x0410, 0x0307, 0x0306, 0x0405, 0x0209, 0x0208, 0x0207, 0x050F,
+    0x0410, 0x0307, 0x0405, 0x050D, 0x0209, 0x0208, 0x0207, 0x050F,
  /* KB_F1, KB_F2, KB_F3, KB_F4, KB_F5, KB_F6, KB_F7, KB_F8 */
     0x010B, 0x010A, 0x080B, 0x070A, 0x070B, 0x020A, 0x020B, 0x030A,
  /* KB_F9, KB_F10, KB_F11, KB_F12, KB_PSCREEN, KB_SCROLL, KB_PAUSE, KB_INSERT */
@@ -333,11 +333,6 @@ static void n64_kb_from_generic(struct wired_ctrl *ctrl_data, struct wired_data 
         if (ctrl_data->btns[2].value & BIT(KB_HOME & 0x1F)) {
             map_tmp.bitfield = 0x01;
         }
-    }
-
-    for (uint32_t i = 0; i < ARRAY_SIZE(map_tmp.key_codes); i++) {
-        uint16_t val = map_tmp.key_codes[i];
-        map_tmp.key_codes[i] = (uint16_t)((val << 8) | (val >> 8));
     }
 
     memcpy(wired_data->output, (void *)&map_tmp, sizeof(map_tmp));
