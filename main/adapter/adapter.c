@@ -22,6 +22,7 @@
 #include "wireless/wireless.h"
 #include "macro.h"
 #include "bluetooth/host.h"
+#include "adapter/wired/n64_runtime.h"
 #include "tests/cmds.h"
 
 const uint32_t hat_to_ld_btns[16] = {
@@ -45,9 +46,6 @@ struct wired_ctrl *ctrl_output;
 struct generic_fb fb_input;
 struct bt_adapter bt_adapter = {0};
 struct wired_adapter wired_adapter = {0};
-volatile uint8_t n64_port_dev_mode[4] = {DEV_PAD, DEV_PAD, DEV_PAD, DEV_PAD};
-volatile uint8_t n64_port_desired_mode[4] = {DEV_PAD, DEV_PAD, DEV_PAD, DEV_PAD};
-volatile uint8_t n64_port_reinit[4] = {0, 0, 0, 0};
 static uint32_t adapter_out_mask[WIRED_MAX_DEV] = {0};
 static bool rumble_mute = false;
 
@@ -416,7 +414,7 @@ void IRAM_ATTR adapter_init_buffer(uint8_t wired_id) {
 
         /* For N64, runtime dev_mode is presence-driven (default PAD). */
         if (wired_adapter.system_id == N64 && wired_id < 4) {
-            dev_mode = n64_port_dev_mode[wired_id];
+            dev_mode = n64_runtime_get_active_mode(wired_id, dev_mode);
         }
 
         wired_adapter.data[wired_id].index = wired_id;
@@ -458,7 +456,7 @@ void adapter_bridge(struct bt_data *bt_data) {
 
                     /* For N64, match output formatting to runtime dev_mode. */
                     if (wired_adapter.system_id == N64 && i < 4) {
-                        dev_mode = n64_port_dev_mode[i];
+                        dev_mode = n64_runtime_get_active_mode(i, dev_mode);
                     }
 
                     ctrl_output[i].index = i;
@@ -467,6 +465,11 @@ void adapter_bridge(struct bt_data *bt_data) {
             }
         }
     }
+}
+
+void adapter_reinit_output(uint8_t wired_id) {
+    adapter_init_buffer(wired_id);
+    memset((void *)wired_adapter.data[wired_id].output, 0, sizeof(wired_adapter.data[wired_id].output));
 }
 
 void adapter_fb_stop_timer_start(uint8_t dev_id, uint64_t dur_us) {

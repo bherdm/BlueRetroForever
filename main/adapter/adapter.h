@@ -579,13 +579,6 @@ extern const uint32_t generic_btns_mask[32];
 extern struct bt_adapter bt_adapter;
 extern struct wired_adapter wired_adapter;
 
-/* N64: runtime per-port dev_mode (default PAD; switches to KB/MOUSE when present) */
-extern volatile uint8_t n64_port_dev_mode[4];
-/* N64: desired per-port dev_mode, applied on 0x00/0xFF identify/reset */
-extern volatile uint8_t n64_port_desired_mode[4];
-/* N64: request buffer re-init after mode switch (set in ISR, handled in BT task) */
-extern volatile uint8_t n64_port_reinit[4];
-
 uint32_t adapter_get_out_mask(uint8_t dev_id);
 int32_t btn_id_to_axis(uint8_t btn_id);
 uint8_t btn_is_axis(uint8_t dst_id, uint8_t dst_btn_id);
@@ -593,6 +586,7 @@ uint32_t axis_to_btn_mask(uint8_t axis);
 uint32_t axis_to_btn_id(uint8_t axis);
 int8_t btn_sign(uint32_t polarity, uint8_t btn_id);
 void adapter_init_buffer(uint8_t wired_id);
+void adapter_reinit_output(uint8_t wired_id);
 void adapter_bridge(struct bt_data *bt_data);
 void adapter_fb_stop_timer_start(uint8_t dev_id, uint64_t dur_us);
 void adapter_fb_stop_timer_stop(uint8_t dev_id);
