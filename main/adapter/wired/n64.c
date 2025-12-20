@@ -335,6 +335,11 @@ static void n64_kb_from_generic(struct wired_ctrl *ctrl_data, struct wired_data 
         }
     }
 
+    for (uint32_t i = 0; i < ARRAY_SIZE(map_tmp.key_codes); i++) {
+        uint16_t val = map_tmp.key_codes[i];
+        map_tmp.key_codes[i] = (uint16_t)((val << 8) | (val >> 8));
+    }
+
     memcpy(wired_data->output, (void *)&map_tmp, sizeof(map_tmp));
 }
 
