@@ -27,7 +27,7 @@ void n64_runtime_set_desired_mode(uint8_t port, int32_t dev_mode) {
     atomic_set(&s_n64_desired_mode[port], dev_mode);
 }
 
-int32_t n64_runtime_get_active_mode(uint8_t port, int32_t fallback_dev_mode) {
+int32_t IRAM_ATTR n64_runtime_get_active_mode(uint8_t port, int32_t fallback_dev_mode) {
     if (port >= N64_PORT_MAX) {
         return fallback_dev_mode;
     }

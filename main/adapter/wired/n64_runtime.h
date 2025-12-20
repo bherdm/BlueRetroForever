@@ -8,7 +8,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <esp_attr.h>
 #include "adapter/adapter.h"
 
 #ifdef __cplusplus
@@ -22,7 +21,7 @@ int32_t n64_runtime_get_active_mode(uint8_t port, int32_t fallback_dev_mode);
  * If cmd is identify/reset (0x00/0xFF) and desired != active, active is updated
  * and a reinit is requested for task context.
  */
-void IRAM_ATTR n64_runtime_on_identify_cmd(uint8_t port, uint8_t cmd);
+void n64_runtime_on_identify_cmd(uint8_t port, uint8_t cmd);
 
 /* Task-context: returns true once per apply to let a task reinit buffers safely. */
 bool n64_runtime_take_reinit(uint8_t port);
