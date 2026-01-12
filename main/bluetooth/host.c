@@ -302,7 +302,7 @@ static void bt_host_task(void *param) {
         if (wired_adapter.system_id == N64) {
     #ifdef CONFIG_BLUERETRO_N64_AUTO_ID_SWITCHING
             for (uint8_t port = 0; port < 4; port++) {
-                uint8_t new_desired = DEV_PAD;
+                uint8_t new_desired = config.out_cfg[port].dev_mode;
                 struct bt_dev *device = NULL;
 
                 if (bt_host_get_active_dev_from_out_idx(port, &device) >= 0 && device) {
@@ -311,6 +311,10 @@ static void bt_host_task(void *param) {
                     }
                     else if (device->ids.report_type == MOUSE) {
                         new_desired = DEV_MOUSE;
+                    }
+                    else {
+                        /* Default to gamepad when an attached device isn't KB/Mouse. */
+                        new_desired = DEV_PAD;
                     }
                 }
 

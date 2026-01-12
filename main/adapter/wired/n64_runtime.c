@@ -20,11 +20,29 @@ static atomic_t s_n64_active_mode[N64_PORT_MAX] = {
 
 static atomic_t s_n64_reinit_mask = 0;
 
+void n64_runtime_seed_mode(uint8_t port, int32_t dev_mode) {
+    if (port >= N64_PORT_MAX) {
+        return;
+    }
+
+    /* Seed both desired and active so the first identify reflects the configured mode. */
+    atomic_set(&s_n64_desired_mode[port], dev_mode);
+    atomic_set(&s_n64_active_mode[port], dev_mode);
+    atomic_clear_bit(&s_n64_reinit_mask, port);
+}
+
 void n64_runtime_set_desired_mode(uint8_t port, int32_t dev_mode) {
     if (port >= N64_PORT_MAX) {
         return;
     }
     atomic_set(&s_n64_desired_mode[port], dev_mode);
+
+    int32_t active = atomic_get(&s_n64_active_mode[port]);
+    if (active != dev_mode) {
+        /* When desired changes (e.g., BT device connects), update active immediately and flag reinit. */
+        atomic_set(&s_n64_active_mode[port], dev_mode);
+        atomic_set_bit(&s_n64_reinit_mask, port);
+    }
 }
 
 int32_t IRAM_ATTR n64_runtime_get_active_mode(uint8_t port, int32_t fallback_dev_mode) {

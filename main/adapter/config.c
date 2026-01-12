@@ -16,6 +16,7 @@
 #include "adapter/gameid.h"
 #include "bluetooth/mon.h"
 #include "system/manager.h"
+#include "adapter/wired/n64_runtime.h"
 
 struct config config;
 struct hw_config hw_config = {
@@ -118,6 +119,7 @@ static bool config_rst_bare_core = false;
 
 static void config_init_struct(struct config *data);
 static void config_init_nvs_patch(struct config *data);
+static void config_apply_out_cfg_runtime(void);
 static int32_t config_load_from_file(struct config *data, char *filename);
 static int32_t config_store_on_file(struct config *data, char *filename);
 static int32_t config_v0_update(struct config *data, char *filename);
@@ -321,6 +323,14 @@ static void config_init_nvs_patch(struct config *data) {
     }
 }
 
+static void config_apply_out_cfg_runtime(void) {
+#ifdef CONFIG_BLUERETRO_N64_AUTO_ID_SWITCHING
+    for (uint32_t port = 0; port < WIRED_MAX_DEV && port < 4; port++) {
+        n64_runtime_seed_mode(port, config.out_cfg[port].dev_mode);
+    }
+#endif
+}
+
 static int32_t config_load_from_file(struct config *data, char *filename) {
 #ifdef CONFIG_BLUERETRO_QEMU
     config_init_struct(data);
@@ -459,6 +469,7 @@ void config_init(uint32_t src) {
     }
 
     config_load_from_file(&config, filename);
+    config_apply_out_cfg_runtime();
     if (config_rst_bare_core && config_is_rst_required()) {
         sys_mgr_cmd(SYS_MGR_CMD_WIRED_RST);
         printf("# %s: Reloaded wired core cfg: %s\n", __FUNCTION__, filename);
@@ -478,6 +489,7 @@ void config_update(uint32_t dst) {
     }
 
     config_store_on_file(&config, filename);
+    config_apply_out_cfg_runtime();
     if (config_rst_bare_core && config_is_rst_required()) {
         sys_mgr_cmd(SYS_MGR_CMD_WIRED_RST);
         printf("# %s: Reloaded wired core cfg: %s\n", __FUNCTION__, filename);

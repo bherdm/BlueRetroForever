@@ -16,6 +16,7 @@ extern "C" {
 
 void n64_runtime_set_desired_mode(uint8_t port, int32_t dev_mode);
 int32_t n64_runtime_get_active_mode(uint8_t port, int32_t fallback_dev_mode);
+void n64_runtime_seed_mode(uint8_t port, int32_t dev_mode);
 
 /* Call from ISR with the first command byte (buf[0]).
  * If cmd is identify/reset (0x00/0xFF) and desired != active, active is updated
