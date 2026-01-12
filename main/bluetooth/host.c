@@ -764,6 +764,7 @@ void bt_host_bridge(struct bt_dev *device, uint8_t report_id, uint8_t *data, uin
             return;
         }
         bt_data->base.report_type = report_type = report->type;
+        device->ids.report_type = report_type;
         len = report->len;
         if (report_id != bt_data->base.report_id) {
             atomic_clear_bit(&bt_data->base.flags[report_type], BT_INIT);
