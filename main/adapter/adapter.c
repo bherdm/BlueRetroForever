@@ -91,16 +91,21 @@ static uint32_t adapter_map_from_axis(struct map_cfg * map_cfg) {
                 const bool src_relative = ctrl_input->axes[src_axis_idx].meta->relative;
                 int32_t src_abs_max;
                 if (src_relative) {
-                    /* Use a stable symmetric range for relative axes; derive it if missing. */
+                    /* Keep a stable, growing range for relative axes so small deltas stay analog. */
                     src_abs_max = ctrl_input->axes[src_axis_idx].meta->size_max;
                     if (!src_abs_max) {
                         src_abs_max = MAX(abs(ctrl_input->axes[src_axis_idx].meta->abs_max),
                                           abs(ctrl_input->axes[src_axis_idx].meta->abs_min));
                         if (!src_abs_max) {
-                            src_abs_max = MAX(abs_src_value, 1);
+                            src_abs_max = 127; /* Sensible default for mice; avoids 1-tick saturation. */
                         }
-                        ctrl_input->axes[src_axis_idx].meta->size_max = src_abs_max;
                     }
+
+                    /* Track observed peak so later larger deltas expand the working range. */
+                    if (abs_src_value > src_abs_max) {
+                        src_abs_max = abs_src_value;
+                    }
+                    ctrl_input->axes[src_axis_idx].meta->size_max = src_abs_max;
                 }
                 else if (src_sign > 0) {
                     if (abs_src_value > ctrl_input->axes[src_axis_idx].meta->abs_max) {
@@ -121,27 +126,28 @@ static uint32_t adapter_map_from_axis(struct map_cfg * map_cfg) {
                 out->axes[dst_axis_idx].relative = ctrl_input->axes[src_axis_idx].meta->relative;
                 /* Dst is an axis */
                 int32_t deadzone = (int32_t)(((float)map_cfg->perc_deadzone / 10000) * src_abs_max) + ctrl_input->axes[src_axis_idx].meta->deadzone;
-                if (src_relative && deadzone > 0) {
-                    /* Relative mouse axes should not be throttled by large deadzones. */
-                    deadzone = MIN(deadzone, src_abs_max / 8);
+                if (src_relative) {
+                    /* Relative mouse axes: no deadzone so every tick counts. */
+                    deadzone = 0;
                 }
-                /* Check if axis over deadzone */
-                if (abs_src_value > deadzone) {
-                    int32_t value = abs_src_value - deadzone;
-                    int32_t dst_sign = btn_sign(out->axes[dst_axis_idx].meta->polarity, dst);
-                    int32_t dst_abs_max = (dst_sign > 0) ? out->axes[dst_axis_idx].meta->abs_max : out->axes[dst_axis_idx].meta->abs_min;
-                    float scale, fvalue;
-                    switch (map_cfg->algo & 0xF) {
-                        case LINEAR:
-                            scale = ((float)dst_abs_max / (src_abs_max - deadzone)) * (((float)map_cfg->perc_max) / 100);
-                            break;
-                        default:
-                            scale = ((float)map_cfg->perc_max) / 100;
-                            break;
+                /* Apply gain before deadzone so boosting keeps the usable range. */
+                int32_t dst_sign = btn_sign(out->axes[dst_axis_idx].meta->polarity, dst);
+                int32_t dst_abs_max = (dst_sign > 0) ? out->axes[dst_axis_idx].meta->abs_max : out->axes[dst_axis_idx].meta->abs_min;
+                float scale;
+                switch (map_cfg->algo & 0xF) {
+                    case LINEAR:
+                        scale = ((float)dst_abs_max / (src_abs_max - deadzone)) * (((float)map_cfg->perc_max) / 100);
+                        break;
+                    default:
+                        scale = ((float)map_cfg->perc_max) / 100;
+                        break;
+                }
 
-                    }
-                    fvalue = dst_sign * value * scale;
-                    value = (int32_t)fvalue;
+                float scaled_value = abs_src_value * scale;
+                float scaled_deadzone = deadzone * scale;
+
+                if (scaled_value > scaled_deadzone) {
+                    int32_t value = (int32_t)(dst_sign * (scaled_value - scaled_deadzone));
 
                     if (abs(value) > abs(out->axes[dst_axis_idx].value)) {
                         out->axes[dst_axis_idx].value = value;
@@ -255,48 +261,56 @@ uint32_t adapter_get_out_mask(uint8_t dev_id) {
 }
 
 int32_t btn_id_to_axis(uint8_t btn_id) {
-    switch (btn_id) {
-        case PAD_LX_LEFT:
-        case PAD_LX_RIGHT:
-        case MOUSE_WX_LEFT:
-        case MOUSE_WX_RIGHT:
-            return AXIS_LX;
-        case PAD_LY_DOWN:
-        case PAD_LY_UP:
-        case MOUSE_WY_DOWN:
-        case MOUSE_WY_UP:
-            return AXIS_LY;
-        case PAD_RX_LEFT:
-        case PAD_RX_RIGHT:
-            return AXIS_RX;
-        case PAD_RY_DOWN:
-        case PAD_RY_UP:
-            return AXIS_RY;
-        case PAD_LM:
-            return TRIG_L;
-        case PAD_RM:
-            return TRIG_R;
-        case PAD_LS:
-            return TRIG_LS;
-        case PAD_RS:
-            return TRIG_RS;
-        case PAD_LD_LEFT:
-            return DPAD_LEFT;
-        case PAD_LD_RIGHT:
-            return DPAD_RIGHT;
-        case PAD_LD_DOWN:
-            return DPAD_DOWN;
-        case PAD_LD_UP:
-            return DPAD_UP;
-        case PAD_RB_LEFT:
-            return BTN_LEFT;
-        case PAD_RB_RIGHT:
-            return BTN_RIGHT;
-        case PAD_RB_DOWN:
-            return BTN_DOWN;
-        case PAD_RB_UP:
-            return BTN_UP;
+    /* Use explicit comparisons to avoid enum value collisions between PAD_* and MOUSE_* ids. */
+    if (btn_id == PAD_LX_LEFT || btn_id == PAD_LX_RIGHT || btn_id == MOUSE_WX_LEFT || btn_id == MOUSE_WX_RIGHT) {
+        return AXIS_LX;
     }
+    if (btn_id == PAD_LY_DOWN || btn_id == PAD_LY_UP || btn_id == MOUSE_WY_DOWN || btn_id == MOUSE_WY_UP) {
+        return AXIS_LY;
+    }
+    if (btn_id == PAD_RX_LEFT || btn_id == PAD_RX_RIGHT || btn_id == MOUSE_X_LEFT || btn_id == MOUSE_X_RIGHT) {
+        return AXIS_RX;
+    }
+    if (btn_id == PAD_RY_DOWN || btn_id == PAD_RY_UP || btn_id == MOUSE_Y_DOWN || btn_id == MOUSE_Y_UP) {
+        return AXIS_RY;
+    }
+    if (btn_id == PAD_LM) {
+        return TRIG_L;
+    }
+    if (btn_id == PAD_RM) {
+        return TRIG_R;
+    }
+    if (btn_id == PAD_LS) {
+        return TRIG_LS;
+    }
+    if (btn_id == PAD_RS) {
+        return TRIG_RS;
+    }
+    if (btn_id == PAD_LD_LEFT) {
+        return DPAD_LEFT;
+    }
+    if (btn_id == PAD_LD_RIGHT) {
+        return DPAD_RIGHT;
+    }
+    if (btn_id == PAD_LD_DOWN) {
+        return DPAD_DOWN;
+    }
+    if (btn_id == PAD_LD_UP) {
+        return DPAD_UP;
+    }
+    if (btn_id == PAD_RB_LEFT) {
+        return BTN_LEFT;
+    }
+    if (btn_id == PAD_RB_RIGHT) {
+        return BTN_RIGHT;
+    }
+    if (btn_id == PAD_RB_DOWN) {
+        return BTN_DOWN;
+    }
+    if (btn_id == PAD_RB_UP) {
+        return BTN_UP;
+    }
+
     return AXIS_NONE;
 }
 
@@ -387,34 +401,20 @@ uint32_t IRAM_ATTR axis_to_btn_id(uint8_t axis) {
 }
 
 int8_t btn_sign(uint32_t polarity, uint8_t btn_id) {
-    switch (btn_id) {
-        case PAD_LX_RIGHT:
-        case PAD_LY_UP:
-        case PAD_RX_RIGHT:
-        case PAD_RY_UP:
-        case PAD_LM:
-        case PAD_RM:
-        case MOUSE_WX_RIGHT:
-        case MOUSE_WY_UP:
-        case PAD_LS:
-        case PAD_RS:
-        case PAD_LD_LEFT:
-        case PAD_LD_RIGHT:
-        case PAD_LD_DOWN:
-        case PAD_LD_UP:
-        case PAD_RB_LEFT:
-        case PAD_RB_RIGHT:
-        case PAD_RB_DOWN:
-        case PAD_RB_UP:
-            return polarity ? -1 : 1;
-        case PAD_LX_LEFT:
-        case PAD_LY_DOWN:
-        case PAD_RY_DOWN:
-        case PAD_RX_LEFT:
-        case MOUSE_WX_LEFT:
-        case MOUSE_WY_DOWN:
-            return polarity ? 1 : -1;
+    /* Explicit comparisons avoid enum-value collisions when distinguishing mouse vs pad directions. */
+    if (btn_id == PAD_LX_RIGHT || btn_id == PAD_LY_UP || btn_id == PAD_RX_RIGHT || btn_id == PAD_RY_UP ||
+        btn_id == PAD_LM || btn_id == PAD_RM || btn_id == MOUSE_WX_RIGHT || btn_id == MOUSE_WY_UP ||
+        btn_id == MOUSE_X_RIGHT || btn_id == MOUSE_Y_UP || btn_id == PAD_LS || btn_id == PAD_RS ||
+        btn_id == PAD_LD_LEFT || btn_id == PAD_LD_RIGHT || btn_id == PAD_LD_DOWN || btn_id == PAD_LD_UP ||
+        btn_id == PAD_RB_LEFT || btn_id == PAD_RB_RIGHT || btn_id == PAD_RB_DOWN || btn_id == PAD_RB_UP) {
+        return polarity ? -1 : 1;
     }
+
+    if (btn_id == PAD_LX_LEFT || btn_id == PAD_LY_DOWN || btn_id == PAD_RY_DOWN || btn_id == PAD_RX_LEFT ||
+        btn_id == MOUSE_WX_LEFT || btn_id == MOUSE_WY_DOWN || btn_id == MOUSE_X_LEFT || btn_id == MOUSE_Y_DOWN) {
+        return polarity ? 1 : -1;
+    }
+
     return 1;
 }
 

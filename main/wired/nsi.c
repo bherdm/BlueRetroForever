@@ -112,8 +112,13 @@ static uint32_t gc_l_trig_prev_state[4] = {0};
 static uint32_t gc_r_trig_prev_state[4] = {0};
 
 #ifndef CONFIG_BLUERETRO_N64_MOUSE_SENS
-#define CONFIG_BLUERETRO_N64_MOUSE_SENS 100
+#define CONFIG_BLUERETRO_N64_MOUSE_SENS 4600
 #endif
+
+static inline int32_t n64_mouse_sens(void) {
+    /* Simple accessor to allow Kconfig override or fallback. */
+    return CONFIG_BLUERETRO_N64_MOUSE_SENS;
+}
 
 static inline void load_mouse_axes(uint8_t port, uint8_t *axes) {
     uint8_t *relative = (uint8_t *)(wired_adapter.data[port].output + 2);
@@ -129,7 +134,7 @@ static inline void load_mouse_axes(uint8_t port, uint8_t *axes) {
         }
 
         /* Apply configurable sensitivity (percent). Guarantee at least 1 step when movement exists. */
-        int32_t scaled = (val * CONFIG_BLUERETRO_N64_MOUSE_SENS) / 100;
+        int32_t scaled = (val * n64_mouse_sens()) / 100;
         if (scaled == 0 && val != 0) {
             scaled = (val > 0) ? 1 : -1;
         }

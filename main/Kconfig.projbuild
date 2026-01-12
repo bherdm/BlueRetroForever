@@ -146,12 +146,13 @@ menu "BlueRetro"
 
     config BLUERETRO_N64_MOUSE_SENS
         int "N64 mouse sensitivity (percent)"
-        range 1 800
-        default 200
+        range 1 30000
+        default 400
         help
             Multiplier for N64 mouse relative movement, expressed in percent.
             100 means 1.0x (no change), 200 doubles the speed. Applies symmetrically
-            to both axes after accumulation and before clamping.
+            to both axes after accumulation and before clamping. Values above 800 are
+            allowed for very high gain (e.g., 24000 = 240x) but may saturate quickly.
 
     menu "Debug"
 
