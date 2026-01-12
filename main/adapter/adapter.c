@@ -92,21 +92,8 @@ static uint32_t adapter_map_from_axis(struct map_cfg * map_cfg) {
                 const bool src_relative = ctrl_input->axes[src_axis_idx].meta->relative;
                 int32_t src_abs_max;
                 if (src_relative) {
-                    /* Keep a stable, growing range for relative axes so small deltas stay analog. */
-                    src_abs_max = ctrl_input->axes[src_axis_idx].meta->size_max;
-                    if (!src_abs_max) {
-                        src_abs_max = MAX(abs(ctrl_input->axes[src_axis_idx].meta->abs_max),
-                                          abs(ctrl_input->axes[src_axis_idx].meta->abs_min));
-                        if (!src_abs_max) {
-                            src_abs_max = 127; /* Sensible default for mice; avoids 1-tick saturation. */
-                        }
-                    }
-
-                    /* Track observed peak so later larger deltas expand the working range. */
-                    if (abs_src_value > src_abs_max) {
-                        src_abs_max = abs_src_value;
-                    }
-                    ctrl_input->axes[src_axis_idx].meta->size_max = src_abs_max;
+                    /* For relative devices, avoid per-axis auto-normalization that skews diagonals. */
+                    src_abs_max = abs_src_value ? abs_src_value : 1;
                 }
                 else if (src_sign > 0) {
                     if (abs_src_value > ctrl_input->axes[src_axis_idx].meta->abs_max) {
@@ -128,20 +115,25 @@ static uint32_t adapter_map_from_axis(struct map_cfg * map_cfg) {
                 /* Dst is an axis */
                 int32_t deadzone = (int32_t)(((float)map_cfg->perc_deadzone / 10000) * src_abs_max) + ctrl_input->axes[src_axis_idx].meta->deadzone;
                 if (src_relative) {
-                    /* Relative mouse axes: no deadzone so every tick counts. */
+                    /* Relative mouse axes: no deadzone and no dynamic normalization; keep isotropic gain. */
                     deadzone = 0;
                 }
                 /* Apply gain before deadzone so boosting keeps the usable range. */
                 int32_t dst_sign = btn_sign(out->axes[dst_axis_idx].meta->polarity, dst);
                 int32_t dst_abs_max = (dst_sign > 0) ? out->axes[dst_axis_idx].meta->abs_max : out->axes[dst_axis_idx].meta->abs_min;
                 float scale;
-                switch (map_cfg->algo & 0xF) {
-                    case LINEAR:
-                        scale = ((float)dst_abs_max / (src_abs_max - deadzone)) * (((float)map_cfg->perc_max) / 100);
-                        break;
-                    default:
-                        scale = ((float)map_cfg->perc_max) / 100;
-                        break;
+                if (src_relative) {
+                    scale = ((float)map_cfg->perc_max) / 100.0f;
+                }
+                else {
+                    switch (map_cfg->algo & 0xF) {
+                        case LINEAR:
+                            scale = ((float)dst_abs_max / (src_abs_max - deadzone)) * (((float)map_cfg->perc_max) / 100);
+                            break;
+                        default:
+                            scale = ((float)map_cfg->perc_max) / 100;
+                            break;
+                    }
                 }
 
                 float scaled_value = abs_src_value * scale;

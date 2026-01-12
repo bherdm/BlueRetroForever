@@ -125,6 +125,7 @@ static inline void load_mouse_axes(uint8_t port, uint8_t *axes) {
     int32_t *raw_axes = (int32_t *)(wired_adapter.data[port].output + 4);
     int8_t *axes_signed = (int8_t *)axes;
     int32_t val = 0;
+    const bool pointer_mode = (port < WIRED_MAX_DEV) ? n64_mouse_pointer_mode[port] : false;
 
     for (uint32_t i = 0; i < 2; i++) {
         if (relative[i]) {
@@ -134,7 +135,21 @@ static inline void load_mouse_axes(uint8_t port, uint8_t *axes) {
             val = raw_axes[i];
         }
 
-        /* Simple 1:1 scaling with rounding; always emit at least +/-1 when movement exists. */
+        if (pointer_mode) {
+            /* Pointer mode already scaled in mapper; just clamp to signed byte. */
+            if (val > 127) {
+                axes_signed[i] = 127;
+            }
+            else if (val < -127) {
+                axes_signed[i] = -127;
+            }
+            else {
+                axes_signed[i] = (int8_t)val;
+            }
+            continue;
+        }
+
+        /* Legacy joystick emulation scaling. */
         int32_t scaled_num = val * n64_mouse_sens();
         int32_t out = (scaled_num + ((scaled_num > 0) ? 50 : -50)) / 100; /* round */
 
