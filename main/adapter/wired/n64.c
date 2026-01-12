@@ -65,6 +65,10 @@ static DRAM_ATTR const struct ctrl_meta n64_mouse_axes_meta[N64_AXES_MAX] =
 #define CONFIG_BLUERETRO_N64_MOUSE_PTR_ACCEL 1.05f
 #endif
 
+#ifndef CONFIG_BLUERETRO_N64_MOUSE_PTR_ACCEL_PCT
+#define CONFIG_BLUERETRO_N64_MOUSE_PTR_ACCEL_PCT 105
+#endif
+
 #ifndef CONFIG_BLUERETRO_N64_MOUSE_PTR_SMOOTH
 #define CONFIG_BLUERETRO_N64_MOUSE_PTR_SMOOTH 0.2f
 #endif
@@ -104,7 +108,11 @@ static inline void n64_mouse_mapper_load_cfg(uint8_t port) {
     const float sens_percent = ((float)CONFIG_BLUERETRO_N64_MOUSE_SENS) / 1000.0f;
     const float sens_percent_base = 1.2f;
     mouse_cfg[port].sensitivity = CONFIG_BLUERETRO_N64_MOUSE_PTR_SENS * (sens_percent / sens_percent_base);
-    mouse_cfg[port].accel = CONFIG_BLUERETRO_N64_MOUSE_PTR_ACCEL;
+    /* Allow dialing accel via percent knob; fallback to float default. */
+    mouse_cfg[port].accel = ((float)CONFIG_BLUERETRO_N64_MOUSE_PTR_ACCEL_PCT) / 100.0f;
+    if (mouse_cfg[port].accel < 1.0f) {
+        mouse_cfg[port].accel = CONFIG_BLUERETRO_N64_MOUSE_PTR_ACCEL;
+    }
     mouse_cfg[port].smoothing_alpha = CONFIG_BLUERETRO_N64_MOUSE_PTR_SMOOTH;
     mouse_cfg[port].max_per_frame = CONFIG_BLUERETRO_N64_MOUSE_PTR_MAX;
     mouse_cfg[port].poll_interval_s = ((float)CONFIG_BLUERETRO_N64_MOUSE_PTR_POLL_US) / 1000000.0f;

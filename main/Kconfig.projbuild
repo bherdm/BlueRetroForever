@@ -154,6 +154,15 @@ menu "BlueRetro"
             to both axes after accumulation and before clamping. Values above 800 are
             allowed for very high gain (e.g., 24000 = 240x) but may saturate quickly.
 
+    config BLUERETRO_N64_MOUSE_PTR_ACCEL_PCT
+        int "N64 mouse pointer acceleration (percent)"
+        range 50 300
+        default 50
+        help
+            Soft acceleration exponent for N64 mouse pointer mode, expressed in percent.
+            100 = linear (no accel), 105 = powf(speed, 1.05). Lower this to reduce
+            aggressive acceleration, increase to make fast motions ramp harder.
+
     menu "Debug"
 
         config BLUERETRO_QEMU
