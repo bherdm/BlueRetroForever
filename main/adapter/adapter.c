@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 #include <freertos/FreeRTOS.h>
 #include <xtensa/hal.h>
 #include <esp_heap_caps.h>
@@ -147,7 +148,13 @@ static uint32_t adapter_map_from_axis(struct map_cfg * map_cfg) {
                 float scaled_deadzone = deadzone * scale;
 
                 if (scaled_value > scaled_deadzone) {
-                    int32_t value = (int32_t)(dst_sign * (scaled_value - scaled_deadzone));
+                    float signed_val = dst_sign * (scaled_value - scaled_deadzone);
+                    int32_t value = (int32_t)lroundf(signed_val);
+
+                    /* For relative axes, always emit at least +/-1 when movement exists. */
+                    if (src_relative && abs_src_value > 0 && value == 0) {
+                        value = (signed_val >= 0.f) ? 1 : -1;
+                    }
 
                     if (abs(value) > abs(out->axes[dst_axis_idx].value)) {
                         out->axes[dst_axis_idx].value = value;
