@@ -79,28 +79,41 @@ static uint32_t adapter_map_from_axis(struct map_cfg * map_cfg) {
         return 0;
     }
 
-    /* Check if mapping dst exist in output */
-    if (dst_mask & out->mask[dst_btn_idx]) {
-        int32_t abs_src_value = abs(ctrl_input->axes[src_axis_idx].value);
-        int32_t src_sign = btn_sign(ctrl_input->axes[src_axis_idx].meta->polarity, src);
-        int32_t sign_check = src_sign * ctrl_input->axes[src_axis_idx].value;
+        /* Check if mapping dst exist in output */
+        if (dst_mask & out->mask[dst_btn_idx]) {
+            int32_t abs_src_value = abs(ctrl_input->axes[src_axis_idx].value);
+            int32_t src_sign = btn_sign(ctrl_input->axes[src_axis_idx].meta->polarity, src);
+            int32_t sign_check = src_sign * ctrl_input->axes[src_axis_idx].value;
 
-        /* Check if the srv value sign match the src mapping sign */
-        if (sign_check >= 0) {
-            /* Get proper abs_max base on sign and update max if current value is over */
-            int32_t src_abs_max;
-            if (src_sign > 0) {
-                if (abs_src_value > ctrl_input->axes[src_axis_idx].meta->abs_max) {
-                    ctrl_input->axes[src_axis_idx].meta->abs_max = abs_src_value;
+            /* Check if the srv value sign match the src mapping sign */
+            if (sign_check >= 0) {
+                /* For relative devices (e.g., mice), avoid dynamic scaling divergence per direction. */
+                const bool src_relative = ctrl_input->axes[src_axis_idx].meta->relative;
+                int32_t src_abs_max;
+                if (src_relative) {
+                    /* Use a stable symmetric range for relative axes; derive it if missing. */
+                    src_abs_max = ctrl_input->axes[src_axis_idx].meta->size_max;
+                    if (!src_abs_max) {
+                        src_abs_max = MAX(abs(ctrl_input->axes[src_axis_idx].meta->abs_max),
+                                          abs(ctrl_input->axes[src_axis_idx].meta->abs_min));
+                        if (!src_abs_max) {
+                            src_abs_max = MAX(abs_src_value, 1);
+                        }
+                        ctrl_input->axes[src_axis_idx].meta->size_max = src_abs_max;
+                    }
                 }
-                src_abs_max = ctrl_input->axes[src_axis_idx].meta->abs_max;
-            }
-            else {
-                if (abs_src_value > ctrl_input->axes[src_axis_idx].meta->abs_min) {
-                    ctrl_input->axes[src_axis_idx].meta->abs_min = abs_src_value;
+                else if (src_sign > 0) {
+                    if (abs_src_value > ctrl_input->axes[src_axis_idx].meta->abs_max) {
+                        ctrl_input->axes[src_axis_idx].meta->abs_max = abs_src_value;
+                    }
+                    src_abs_max = ctrl_input->axes[src_axis_idx].meta->abs_max;
                 }
-                src_abs_max = ctrl_input->axes[src_axis_idx].meta->abs_min;
-            }
+                else {
+                    if (abs_src_value > ctrl_input->axes[src_axis_idx].meta->abs_min) {
+                        ctrl_input->axes[src_axis_idx].meta->abs_min = abs_src_value;
+                    }
+                    src_abs_max = ctrl_input->axes[src_axis_idx].meta->abs_min;
+                }
 
             /* Check if dst is an axis */
             if (dst_mask & out->desc[dst_btn_idx]) {
@@ -108,6 +121,10 @@ static uint32_t adapter_map_from_axis(struct map_cfg * map_cfg) {
                 out->axes[dst_axis_idx].relative = ctrl_input->axes[src_axis_idx].meta->relative;
                 /* Dst is an axis */
                 int32_t deadzone = (int32_t)(((float)map_cfg->perc_deadzone / 10000) * src_abs_max) + ctrl_input->axes[src_axis_idx].meta->deadzone;
+                if (src_relative && deadzone > 0) {
+                    /* Relative mouse axes should not be throttled by large deadzones. */
+                    deadzone = MIN(deadzone, src_abs_max / 8);
+                }
                 /* Check if axis over deadzone */
                 if (abs_src_value > deadzone) {
                     int32_t value = abs_src_value - deadzone;
@@ -251,13 +268,9 @@ int32_t btn_id_to_axis(uint8_t btn_id) {
             return AXIS_LY;
         case PAD_RX_LEFT:
         case PAD_RX_RIGHT:
-        //case MOUSE_X_LEFT:
-        //case MOUSE_X_RIGHT:
             return AXIS_RX;
         case PAD_RY_DOWN:
         case PAD_RY_UP:
-        //case MOUSE_Y_DOWN:
-        //case MOUSE_Y_UP:
             return AXIS_RY;
         case PAD_LM:
             return TRIG_L;
@@ -304,9 +317,9 @@ uint32_t axis_to_btn_mask(uint8_t axis) {
         case AXIS_LY:
             return BIT(PAD_LY_DOWN) | BIT(PAD_LY_UP) | BIT(MOUSE_WY_DOWN) | BIT(MOUSE_WY_UP);
         case AXIS_RX:
-            return BIT(PAD_RX_LEFT) | BIT(PAD_RX_RIGHT); /* BIT(MOUSE_X_LEFT) | BIT(MOUSE_X_RIGHT) */
+            return BIT(PAD_RX_LEFT) | BIT(PAD_RX_RIGHT) | BIT(MOUSE_X_LEFT) | BIT(MOUSE_X_RIGHT);
         case AXIS_RY:
-            return BIT(PAD_RY_DOWN) | BIT(PAD_RY_UP); /* BIT(MOUSE_Y_DOWN) | BIT(MOUSE_Y_UP) */
+            return BIT(PAD_RY_DOWN) | BIT(PAD_RY_UP) | BIT(MOUSE_Y_DOWN) | BIT(MOUSE_Y_UP);
         case TRIG_L:
             return BIT(PAD_LM);
         case TRIG_R:
@@ -383,8 +396,6 @@ int8_t btn_sign(uint32_t polarity, uint8_t btn_id) {
         case PAD_RM:
         case MOUSE_WX_RIGHT:
         case MOUSE_WY_UP:
-        //case MOUSE_X_RIGHT:
-        //case MOUSE_Y_UP:
         case PAD_LS:
         case PAD_RS:
         case PAD_LD_LEFT:
@@ -402,8 +413,6 @@ int8_t btn_sign(uint32_t polarity, uint8_t btn_id) {
         case PAD_RX_LEFT:
         case MOUSE_WX_LEFT:
         case MOUSE_WY_DOWN:
-        //case MOUSE_X_LEFT:
-        //case MOUSE_Y_DOWN:
             return polarity ? 1 : -1;
     }
     return 1;

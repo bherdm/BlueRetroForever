@@ -144,6 +144,15 @@ menu "BlueRetro"
             Disable this if you want BlueRetro to always use the configured output device
             type (config.out_cfg[].dev_mode) and never switch dynamically.
 
+    config BLUERETRO_N64_MOUSE_SENS
+        int "N64 mouse sensitivity (percent)"
+        range 1 800
+        default 200
+        help
+            Multiplier for N64 mouse relative movement, expressed in percent.
+            100 means 1.0x (no change), 200 doubles the speed. Applies symmetrically
+            to both axes after accumulation and before clamping.
+
     menu "Debug"
 
         config BLUERETRO_QEMU

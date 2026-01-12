@@ -111,6 +111,10 @@ static uint8_t ctrl_init = 0;
 static uint32_t gc_l_trig_prev_state[4] = {0};
 static uint32_t gc_r_trig_prev_state[4] = {0};
 
+#ifndef CONFIG_BLUERETRO_N64_MOUSE_SENS
+#define CONFIG_BLUERETRO_N64_MOUSE_SENS 100
+#endif
+
 static inline void load_mouse_axes(uint8_t port, uint8_t *axes) {
     uint8_t *relative = (uint8_t *)(wired_adapter.data[port].output + 2);
     int32_t *raw_axes = (int32_t *)(wired_adapter.data[port].output + 4);
@@ -124,14 +128,20 @@ static inline void load_mouse_axes(uint8_t port, uint8_t *axes) {
             val = raw_axes[i];
         }
 
-        if (val > 127) {
+        /* Apply configurable sensitivity (percent). Guarantee at least 1 step when movement exists. */
+        int32_t scaled = (val * CONFIG_BLUERETRO_N64_MOUSE_SENS) / 100;
+        if (scaled == 0 && val != 0) {
+            scaled = (val > 0) ? 1 : -1;
+        }
+
+        if (scaled > 127) {
             axes[i] = 127;
         }
-        else if (val < -128) {
-            axes[i] = -128;
+        else if (scaled < -127) {
+            axes[i] = -127;
         }
         else {
-            axes[i] = (uint8_t)val;
+            axes[i] = (uint8_t)scaled;
         }
     }
 }
