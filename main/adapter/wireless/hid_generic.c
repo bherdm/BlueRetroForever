@@ -294,6 +294,7 @@ static void hid_mouse_to_generic(struct bt_data *bt_data, struct wireless_ctrl *
     struct hid_report_meta *meta = &devices_meta[bt_data->base.pids->id].reports_meta[MOUSE];
     struct ctrl_meta *ctrl_meta = bt_data->raw_src_mappings[MOUSE].meta;
     struct raw_src_mapping *map = &bt_data->raw_src_mappings[MOUSE];
+    static uint32_t dbg_ctr;
 
     if (!atomic_test_bit(&bt_data->base.flags[MOUSE], BT_INIT)) {
         hid_parser_load_report(bt_data, bt_data->base.report_id);
@@ -335,6 +336,35 @@ static void hid_mouse_to_generic(struct bt_data *bt_data, struct wireless_ctrl *
                 ctrl_data->axes[i].value |= ~mask;
             }
         }
+    }
+
+    /* Prefer clean primary-axis motion: drop cross-axis noise and then apply dominance filter. */
+    int32_t mx = ctrl_data->axes[AXIS_RX].value;
+    int32_t my = ctrl_data->axes[AXIS_RY].value;
+    int32_t absx = abs(mx);
+    int32_t absy = abs(my);
+    /* Remove tiny cross-axis bleed (<=1 step). */
+    if (absy <= 1) {
+        my = 0;
+        absy = 0;
+    }
+    if (absx <= 1) {
+        mx = 0;
+        absx = 0;
+    }
+    /* If one axis dominates strongly, zero the weaker. */
+    if (absx > absy * 4) {
+        my = 0;
+    }
+    else if (absy > absx * 4) {
+        mx = 0;
+    }
+    ctrl_data->axes[AXIS_RX].value = mx;
+    ctrl_data->axes[AXIS_RY].value = my;
+
+    /* Throttled debug: show raw mouse deltas before any adapter scaling. */
+    if ((++dbg_ctr & 0x3F) == 0) {
+        printf("# HID mouse raw: x=%ld y=%ld\n", (long)mx, (long)my);
     }
 }
 

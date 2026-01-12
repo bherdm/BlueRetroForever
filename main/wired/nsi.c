@@ -123,7 +123,7 @@ static inline int32_t n64_mouse_sens(void) {
 static inline void load_mouse_axes(uint8_t port, uint8_t *axes) {
     uint8_t *relative = (uint8_t *)(wired_adapter.data[port].output + 2);
     int32_t *raw_axes = (int32_t *)(wired_adapter.data[port].output + 4);
-    static int32_t carry_scaled_num[4][2] = {0}; /* numerator carried in percent units */
+    int8_t *axes_signed = (int8_t *)axes;
     int32_t val = 0;
 
     for (uint32_t i = 0; i < 2; i++) {
@@ -134,36 +134,22 @@ static inline void load_mouse_axes(uint8_t port, uint8_t *axes) {
             val = raw_axes[i];
         }
 
-        /* Scale with full precision (keep numerator in percent units) to preserve tiny motion. */
-        int32_t scaled_num = carry_scaled_num[port][i] + val * n64_mouse_sens();
-        int32_t out = scaled_num / 100;
-        int32_t rem = scaled_num - out * 100;
+        /* Simple 1:1 scaling with rounding; always emit at least +/-1 when movement exists. */
+        int32_t scaled_num = val * n64_mouse_sens();
+        int32_t out = (scaled_num + ((scaled_num > 0) ? 50 : -50)) / 100; /* round */
 
-        if (out == 0 && scaled_num != 0) {
-            out = (scaled_num > 0) ? 1 : -1;
-            rem = scaled_num - out * 100;
+        if (out == 0 && val != 0) {
+            out = (val > 0) ? 1 : -1;
         }
-
-        /* Limit per-poll output to tame giant jumps while keeping remainder for next tick. */
-        if (out > 24) {
-            rem += (out - 24) * 100;
-            out = 24;
-        }
-        else if (out < -24) {
-            rem += (out + 24) * 100;
-            out = -24;
-        }
-
-        carry_scaled_num[port][i] = rem;
 
         if (out > 127) {
-            axes[i] = 127;
+            axes_signed[i] = 127;
         }
         else if (out < -127) {
-            axes[i] = -127;
+            axes_signed[i] = -127;
         }
         else {
-            axes[i] = (uint8_t)out;
+            axes_signed[i] = (int8_t)out;
         }
     }
 }
