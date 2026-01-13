@@ -88,11 +88,10 @@ static uint32_t adapter_map_from_axis(struct map_cfg * map_cfg) {
 
             /* Check if the srv value sign match the src mapping sign */
             if (sign_check >= 0) {
-                /* For relative devices (e.g., mice), avoid dynamic scaling divergence per direction. */
-                const bool src_relative = ctrl_input->axes[src_axis_idx].meta->relative;
+                const bool src_relative_n64 = (wired_adapter.system_id == N64) && ctrl_input->axes[src_axis_idx].meta->relative;
                 int32_t src_abs_max;
-                if (src_relative) {
-                    /* For relative devices, avoid per-axis auto-normalization that skews diagonals. */
+                if (src_relative_n64) {
+                    /* N64 mouse path: avoid per-axis normalization to keep isotropic scaling. */
                     src_abs_max = abs_src_value ? abs_src_value : 1;
                 }
                 else if (src_sign > 0) {
@@ -114,15 +113,16 @@ static uint32_t adapter_map_from_axis(struct map_cfg * map_cfg) {
                 out->axes[dst_axis_idx].relative = ctrl_input->axes[src_axis_idx].meta->relative;
                 /* Dst is an axis */
                 int32_t deadzone = (int32_t)(((float)map_cfg->perc_deadzone / 10000) * src_abs_max) + ctrl_input->axes[src_axis_idx].meta->deadzone;
-                if (src_relative) {
-                    /* Relative mouse axes: no deadzone and no dynamic normalization; keep isotropic gain. */
+                if (src_relative_n64) {
+                    /* N64 mouse path: no deadzone for relative axes. */
                     deadzone = 0;
                 }
                 /* Apply gain before deadzone so boosting keeps the usable range. */
                 int32_t dst_sign = btn_sign(out->axes[dst_axis_idx].meta->polarity, dst);
                 int32_t dst_abs_max = (dst_sign > 0) ? out->axes[dst_axis_idx].meta->abs_max : out->axes[dst_axis_idx].meta->abs_min;
                 float scale;
-                if (src_relative) {
+                if (src_relative_n64) {
+                    /* N64 mouse path: isotropic gain only. */
                     scale = ((float)map_cfg->perc_max) / 100.0f;
                 }
                 else {
@@ -143,8 +143,8 @@ static uint32_t adapter_map_from_axis(struct map_cfg * map_cfg) {
                     float signed_val = dst_sign * (scaled_value - scaled_deadzone);
                     int32_t value = (int32_t)lroundf(signed_val);
 
-                    /* For relative axes, always emit at least +/-1 when movement exists. */
-                    if (src_relative && abs_src_value > 0 && value == 0) {
+                    if (src_relative_n64 && abs_src_value > 0 && value == 0) {
+                        /* N64 mouse path: always emit a minimal step when movement exists. */
                         value = (signed_val >= 0.f) ? 1 : -1;
                     }
 
