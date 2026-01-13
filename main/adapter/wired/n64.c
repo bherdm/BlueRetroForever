@@ -49,13 +49,9 @@ static DRAM_ATTR const struct ctrl_meta n64_axes_meta[N64_AXES_MAX] =
 
 static DRAM_ATTR const struct ctrl_meta n64_mouse_axes_meta[N64_AXES_MAX] =
 {
-    {.size_min = -128, .size_max = 127, .neutral = 0x00, .abs_max = 0x7F, .abs_min = 0x7F},
-    {.size_min = -128, .size_max = 127, .neutral = 0x00, .abs_max = 0x7F, .abs_min = 0x7F},
+    {.size_min = -128, .size_max = 127, .neutral = 0x00, .abs_max = 0x7F, .abs_min = 0x80},
+    {.size_min = -128, .size_max = 127, .neutral = 0x00, .abs_max = 0x7F, .abs_min = 0x80},
 };
-
-#ifndef CONFIG_BLUERETRO_N64_MOUSE_PTR_MODE
-#define CONFIG_BLUERETRO_N64_MOUSE_PTR_MODE 1
-#endif
 
 #ifndef CONFIG_BLUERETRO_N64_MOUSE_PTR_SENS
 #define CONFIG_BLUERETRO_N64_MOUSE_PTR_SENS 1.2f
@@ -99,11 +95,10 @@ struct n64_kb_map {
 
 static struct mouse_mapper_cfg mouse_cfg[WIRED_MAX_DEV];
 static struct mouse_mapper_state mouse_state[WIRED_MAX_DEV];
-bool n64_mouse_pointer_mode[WIRED_MAX_DEV];
 
 static inline void n64_mouse_mapper_load_cfg(uint8_t port) {
     mouse_mapper_default_cfg(&mouse_cfg[port]);
-    mouse_cfg[port].pointer_mode = CONFIG_BLUERETRO_N64_MOUSE_PTR_MODE;
+    mouse_cfg[port].pointer_mode = 1;
     /* Map existing percent-based knob to pointer pipeline (1200% -> 1.2x). */
     const float sens_percent = ((float)CONFIG_BLUERETRO_N64_MOUSE_SENS) / 1000.0f;
     const float sens_percent_base = 1.2f;
@@ -117,7 +112,6 @@ static inline void n64_mouse_mapper_load_cfg(uint8_t port) {
     mouse_cfg[port].max_per_frame = CONFIG_BLUERETRO_N64_MOUSE_PTR_MAX;
     mouse_cfg[port].poll_interval_s = ((float)CONFIG_BLUERETRO_N64_MOUSE_PTR_POLL_US) / 1000000.0f;
     mouse_mapper_init(&mouse_state[port], &mouse_cfg[port]);
-    n64_mouse_pointer_mode[port] = mouse_cfg[port].pointer_mode;
 }
 
 static const uint32_t n64_mask[4] = {0x77DF0FFF, 0x00000000, 0x00000000, BR_COMBO_MASK};

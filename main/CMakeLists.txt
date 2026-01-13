@@ -35,8 +35,9 @@ set(cov_srcs
     "adapter/wireless/sw.c"
     "adapter/wireless/sw2.c"
     "adapter/wireless/wireless.c"
-    "tests/mouse_mapper_test.c"
-    "tools/mouse_test_harness.c"
+    # Excluded test and harness sources
+    # "tests/mouse_mapper_test.c"
+    # "tools/mouse_test_harness.c"
     "bluetooth/host.c"
     "bluetooth/hci.c"
     "bluetooth/l2cap.c"

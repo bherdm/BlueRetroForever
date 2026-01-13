@@ -294,7 +294,6 @@ static void hid_mouse_to_generic(struct bt_data *bt_data, struct wireless_ctrl *
     struct hid_report_meta *meta = &devices_meta[bt_data->base.pids->id].reports_meta[MOUSE];
     struct ctrl_meta *ctrl_meta = bt_data->raw_src_mappings[MOUSE].meta;
     struct raw_src_mapping *map = &bt_data->raw_src_mappings[MOUSE];
-    static uint32_t dbg_ctr;
 
     if (!atomic_test_bit(&bt_data->base.flags[MOUSE], BT_INIT)) {
         hid_parser_load_report(bt_data, bt_data->base.report_id);
@@ -338,10 +337,6 @@ static void hid_mouse_to_generic(struct bt_data *bt_data, struct wireless_ctrl *
         }
     }
 
-    /* Throttled debug: show raw mouse deltas before any adapter scaling. */
-    if ((++dbg_ctr & 0x3F) == 0) {
-        printf("# HID mouse raw: x=%ld y=%ld\n", (long)ctrl_data->axes[AXIS_RX].value, (long)ctrl_data->axes[AXIS_RY].value);
-    }
 }
 
 static void hid_pad_init(struct hid_report_meta *meta, struct hid_report *report, struct raw_src_mapping *map) {

@@ -111,21 +111,11 @@ static uint8_t ctrl_init = 0;
 static uint32_t gc_l_trig_prev_state[4] = {0};
 static uint32_t gc_r_trig_prev_state[4] = {0};
 
-#ifndef CONFIG_BLUERETRO_N64_MOUSE_SENS
-#define CONFIG_BLUERETRO_N64_MOUSE_SENS 4600
-#endif
-
-static inline int32_t n64_mouse_sens(void) {
-    /* Simple accessor to allow Kconfig override or fallback. */
-    return CONFIG_BLUERETRO_N64_MOUSE_SENS;
-}
-
 static inline void load_mouse_axes(uint8_t port, uint8_t *axes) {
     uint8_t *relative = (uint8_t *)(wired_adapter.data[port].output + 2);
     int32_t *raw_axes = (int32_t *)(wired_adapter.data[port].output + 4);
     int8_t *axes_signed = (int8_t *)axes;
     int32_t val = 0;
-    const bool pointer_mode = (port < WIRED_MAX_DEV) ? n64_mouse_pointer_mode[port] : false;
 
     for (uint32_t i = 0; i < 2; i++) {
         if (relative[i]) {
@@ -134,37 +124,15 @@ static inline void load_mouse_axes(uint8_t port, uint8_t *axes) {
         else {
             val = raw_axes[i];
         }
-
-        if (pointer_mode) {
-            /* Pointer mode already scaled in mapper; just clamp to signed byte. */
-            if (val > 127) {
-                axes_signed[i] = 127;
-            }
-            else if (val < -127) {
-                axes_signed[i] = -127;
-            }
-            else {
-                axes_signed[i] = (int8_t)val;
-            }
-            continue;
-        }
-
-        /* Legacy joystick emulation scaling. */
-        int32_t scaled_num = val * n64_mouse_sens();
-        int32_t out = (scaled_num + ((scaled_num > 0) ? 50 : -50)) / 100; /* round */
-
-        if (out == 0 && val != 0) {
-            out = (val > 0) ? 1 : -1;
-        }
-
-        if (out > 127) {
+        /* Pointer mapper already scales; just clamp to signed byte. */
+        if (val > 127) {
             axes_signed[i] = 127;
         }
-        else if (out < -127) {
+        else if (val < -127) {
             axes_signed[i] = -127;
         }
         else {
-            axes_signed[i] = (int8_t)out;
+            axes_signed[i] = (int8_t)val;
         }
     }
 }
