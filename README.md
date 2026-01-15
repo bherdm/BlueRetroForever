@@ -1,22 +1,15 @@
-**This repository has been archived and is no longer under active development or maintenance.**
+**This repository is an active fork of the archived BlueRetro project (https://github.com/darthcloud/BlueRetro).**
 
-```
-After 6 years working on BlueRetro, the time has come for me to move on
-and focus on my family and my real job.
 
-The code remains available as-is for reference, learning, and community use,
-but no new features, bug fixes, or pull requests will be accepted.
+BlueRetro was created and maintained by Jacques Gagnon, whose work redefined input support for retro systems. This fork, BlueRetroForever, continues the project under the same licensing.
 
-Thank you to everyone who contributed, tested, reported issues,
-or supported the project over the years.
-Your involvement made BlueRetro what it is today.
-
-If you are looking to build upon this work, please feel free to
-fork the repository in accordance with the license.
+Contributions and testing from the community are welcome and appreciated. My primary focus remains the Retrot Game Engine, so my contributions to BlueRetroForever will mainly serve that project.
 
 Thank you,
-Jacques Gagnon
-```
+
+bherdm
+
+
 
 # BlueRetro
 
@@ -60,3 +53,4 @@ Thanks to all sponsors!
   https://github.com/Arthrimus/BlueRetro-HW2-GameCube
 
 <br><p align="center"><img src="https://cdn.hackaday.io/images/4560691598833898038.png" height="200"/></p>
+
