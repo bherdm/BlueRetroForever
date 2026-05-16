@@ -22,8 +22,9 @@
 #define SW2_USER_CALIB_MAGIC 0xA1B2
 
 /* Drop input reports until calibration is loaded, with a bounded fallback so
- * the controller still works if a SPI read fails. 60 reports ~= 1s at 60Hz. */
-#define SW2_PRE_CALIB_REPORT_LIMIT 60
+ * the controller still works if a SPI read fails. 180 reports ~= 3s at 60Hz,
+ * generous enough to absorb a slow-but-eventually-successful read. */
+#define SW2_PRE_CALIB_REPORT_LIMIT 180
 
 enum {
     SW2_INIT_STATE_READ_INFO = 0,
