@@ -18,6 +18,13 @@
 
 #define SW2_INIT_STATE_RETRY_MAX 10
 
+/* Magic prefix for SW2 user calibration in SPI flash (0xA1B2 LE) */
+#define SW2_USER_CALIB_MAGIC 0xA1B2
+
+/* Drop input reports until calibration is loaded, with a bounded fallback so
+ * the controller still works if a SPI read fails. 60 reports ~= 1s at 60Hz. */
+#define SW2_PRE_CALIB_REPORT_LIMIT 60
+
 enum {
     SW2_INIT_STATE_READ_INFO = 0,
     SW2_INIT_STATE_READ_LTK,
@@ -31,6 +38,18 @@ enum {
 };
 
 static struct bt_hid_sw2_ctrl_calib calib[BT_MAX_DEV] = {0};
+static uint8_t pre_calib_report_cnt[BT_MAX_DEV] = {0};
+
+static bool bt_hid_sw2_calib_data_is_plausible(const uint8_t *data) {
+    /* Reject all-0xFF (erased flash) and all-zero (uninitialised). A valid
+     * stick calibration must have a non-zero, non-saturated X-centre LSB. */
+    uint8_t all_ff = 0xFF, all_00 = 0x00;
+    for (uint32_t i = 0; i < 9; i++) {
+        all_ff &= data[i];
+        all_00 |= data[i];
+    }
+    return all_ff != 0xFF && all_00 != 0x00;
+}
 
 static void bt_hid_sw2_set_calib(struct bt_hid_sw2_ctrl_calib *calib, uint8_t *data, uint8_t stick) {
     calib->sticks[stick].axes[0].neutral = ((data[1] << 8) & 0xF00) | data[0];
@@ -246,6 +265,11 @@ static void bt_hid_sw2_exec_next_state(struct bt_dev *device) {
 }
 
 void bt_hid_sw2_init(struct bt_dev *device) {
+    /* Reset per-device state so a stale calib from a previous controller on
+     * the same dev_id cannot bleed through if a SPI read later fails. */
+    memset(&calib[device->ids.id], 0, sizeof(calib[0]));
+    pre_calib_report_cnt[device->ids.id] = 0;
+
     /* enable cmds rsp */
     uint16_t data = BT_GATT_CCC_NOTIFY;
     bt_att_cmd_write_req(device->acl_handle, 0x001b, (uint8_t *)&data, sizeof(data));
@@ -255,9 +279,36 @@ void bt_hid_sw2_init(struct bt_dev *device) {
     atomic_set_bit(&device->flags, BT_DEV_HID_INIT_DONE);
 }
 
+/* Drop input reports while the init state machine is still loading
+ * calibration. Without this, the first ~3 reports get bridged with the
+ * default 0x800 stick centre (vs the calibrated ~0x7B0), and worse, if a
+ * SPI read aborts with an error response the stale/garbage calib that
+ * gets parsed produces a stuck stick offset. After a bounded number of
+ * reports we let them through anyway with default meta so a controller
+ * with a misbehaving SPI link still works. */
+static bool bt_hid_sw2_gate_report(struct bt_dev *device) {
+    if (atomic_test_bit(&device->flags, BT_DEV_CALIB_SET)) {
+        return true;
+    }
+    if (pre_calib_report_cnt[device->ids.id] < SW2_PRE_CALIB_REPORT_LIMIT) {
+        pre_calib_report_cnt[device->ids.id]++;
+        return false;
+    }
+    /* Timeout: proceed with whatever (possibly zeroed) calib we have. The
+     * adapter falls back to default meta when calib->neutral == 0. */
+    printf("# %s: dev %ld calib read timed out, using defaults\n",
+        __FUNCTION__, device->ids.id);
+    atomic_set_bit(&device->flags, BT_DEV_CALIB_SET);
+    bt_type_update(device->ids.id, BT_SW2, device->ids.subtype);
+    return true;
+}
+
 void bt_hid_sw2_hdlr(struct bt_dev *device, uint16_t att_handle, uint8_t *data, uint32_t len) {
     switch (att_handle) {
         case BT_HIDP_SW2_REPORT_TYPE1_ATT_HDL:
+            if (!bt_hid_sw2_gate_report(device)) {
+                break;
+            }
             bt_host_bridge(device, 1, data, len);
             struct bt_data *bt_data = &bt_adapter.data[device->ids.id];
             if (bt_data && bt_data->base.pid != SW2_GC_PID
@@ -266,11 +317,24 @@ void bt_hid_sw2_hdlr(struct bt_dev *device, uint16_t att_handle, uint8_t *data, 
             }
             break;
         case BT_HIDP_SW2_REPORT_TYPE2_ATT_HDL:
+            if (!bt_hid_sw2_gate_report(device)) {
+                break;
+            }
             bt_host_bridge(device, 2, data, len);
             break;
         case BT_HIDP_SW2_ACK_ATT_HDL:
         {
             struct bt_hidp_sw2_ack *ack = (struct bt_hidp_sw2_ack *)data;
+            /* Only accept successful responses. An ERR (0x00) ack carries no
+             * meaningful payload — parsing it advances the state machine
+             * with garbage data (notably for SPI reads, this is the root of
+             * the "phantom left-stick held down" symptom seen on the NSO
+             * GameCube controller). */
+            if (ack->type != BT_HIDP_SW2_REQ_TYPE_RSP) {
+                printf("# %s: dev %ld skip non-RSP ack type=0x%02X cmd=0x%02X subcmd=0x%02X state=%ld\n",
+                    __FUNCTION__, device->ids.id, ack->type, ack->cmd, ack->subcmd, device->hid_state);
+                break;
+            }
             switch (ack->cmd) {
                 case BT_HIDP_SW2_CMD_READ_SPI:
                     switch (device->hid_state) {
@@ -330,7 +394,7 @@ void bt_hid_sw2_hdlr(struct bt_dev *device, uint16_t att_handle, uint8_t *data, 
                         {
                             struct bt_hid_sw2_ctrl_calib *dev_calib = &calib[device->ids.id];
                             uint8_t *data = &ack->value[52];
-                            if (data[0] != 0xFF) {
+                            if (bt_hid_sw2_calib_data_is_plausible(data)) {
                                 bt_hid_sw2_set_calib(dev_calib, data, 0);
                             }
                             break;
@@ -339,7 +403,7 @@ void bt_hid_sw2_hdlr(struct bt_dev *device, uint16_t att_handle, uint8_t *data, 
                         {
                             struct bt_hid_sw2_ctrl_calib *dev_calib = &calib[device->ids.id];
                             uint8_t *data = &ack->value[52];
-                            if (data[0] != 0xFF) {
+                            if (bt_hid_sw2_calib_data_is_plausible(data)) {
                                 bt_hid_sw2_set_calib(dev_calib, data, 1);
                             }
                             bt_hid_sw2_print_calib(dev_calib);
@@ -348,13 +412,21 @@ void bt_hid_sw2_hdlr(struct bt_dev *device, uint16_t att_handle, uint8_t *data, 
                         case SW2_INIT_STATE_READ_USER_CALIB:
                         {
                             struct bt_hid_sw2_ctrl_calib *dev_calib = &calib[device->ids.id];
-                            uint8_t *data = &ack->value[14];
-                            if (data[0] != 0xFF) {
-                                bt_hid_sw2_set_calib(dev_calib, data, 0);
+                            /* User-cal layout in SPI flash:
+                             *   0x1FC040  magic (uint16 LE, 0xA1B2)  -> ack->value[12..13]
+                             *   0x1FC042  L stick 9-byte calib       -> ack->value[14..22]
+                             *   0x1FC060  magic                       -> ack->value[44..45]
+                             *   0x1FC062  R stick 9-byte calib       -> ack->value[46..54]
+                             * Only trust each stick when its magic is present. */
+                            uint16_t l_magic = (ack->value[13] << 8) | ack->value[12];
+                            uint16_t r_magic = (ack->value[45] << 8) | ack->value[44];
+                            if (l_magic == SW2_USER_CALIB_MAGIC
+                                    && bt_hid_sw2_calib_data_is_plausible(&ack->value[14])) {
+                                bt_hid_sw2_set_calib(dev_calib, &ack->value[14], 0);
                             }
-                            data = &ack->value[46];
-                            if (data[0] != 0xFF) {
-                                bt_hid_sw2_set_calib(dev_calib, data, 1);
+                            if (r_magic == SW2_USER_CALIB_MAGIC
+                                    && bt_hid_sw2_calib_data_is_plausible(&ack->value[46])) {
+                                bt_hid_sw2_set_calib(dev_calib, &ack->value[46], 1);
                             }
                             bt_hid_sw2_print_calib(dev_calib);
                             atomic_set_bit(&device->flags, BT_DEV_CALIB_SET);
