@@ -67,8 +67,13 @@ static const struct ctrl_meta sw2_gc_axes_meta[ADAPTER_MAX_AXES] =
     {.neutral = 0x800, .abs_max = 1225, .abs_min = 1225},
     {.neutral = 0x800, .abs_max = 1120, .abs_min = 1120},
     {.neutral = 0x800, .abs_max = 1120, .abs_min = 1120},
-    {.neutral = 30, .abs_max = 195, .abs_min = 0x00},
-    {.neutral = 30, .abs_max = 195, .abs_min = 0x00},
+    /* NSO GC controller analog triggers idle a few counts above the assumed
+     * neutral of 30, leaking ~3-7 / 200 into the wired output. A small static
+     * deadzone here suppresses the noise without affecting partial-press
+     * feel (full range is ~195 counts, so 9 is ~4.5% -- just over the
+     * observed noise floor). */
+    {.neutral = 30, .abs_max = 195, .abs_min = 0x00, .deadzone = 9},
+    {.neutral = 30, .abs_max = 195, .abs_min = 0x00, .deadzone = 9},
 };
 
 struct sw2_map {
@@ -164,9 +169,11 @@ static int32_t sw2_pad_init(struct bt_data *bt_data) {
             meta[TRIG_L].neutral = sw2_gc_axes_meta[TRIG_L].neutral;
             meta[TRIG_L].abs_max = sw2_gc_axes_meta[TRIG_L].abs_max;
             meta[TRIG_L].abs_min = sw2_gc_axes_meta[TRIG_L].abs_min;
+            meta[TRIG_L].deadzone = sw2_gc_axes_meta[TRIG_L].deadzone;
             meta[TRIG_R].neutral = sw2_gc_axes_meta[TRIG_R].neutral;
             meta[TRIG_R].abs_max = sw2_gc_axes_meta[TRIG_R].abs_max;
             meta[TRIG_R].abs_min = sw2_gc_axes_meta[TRIG_R].abs_min;
+            meta[TRIG_R].deadzone = sw2_gc_axes_meta[TRIG_R].deadzone;
             break;
         }
         case SW2_PRO2_PID:
