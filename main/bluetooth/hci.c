@@ -1,6 +1,10 @@
 /*
  * Copyright (c) 2019-2025, Jacques Gagnon
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified 2026, Pierre Cardell (bjerreman):
+ *   SW2 multi-controller BLE reconnect support — inbound slot routing,
+ *   LTK request handling, passive scan filter, disconnect re-advertise.
  */
 
 #include <stdio.h>
@@ -887,7 +891,7 @@ static void bt_hci_cmd_le_set_scan_param_passive(void) {
     le_set_scan_param->interval = 1024;
     le_set_scan_param->window = 18;
     le_set_scan_param->addr_type = 0x00;
-    le_set_scan_param->filter_policy = 0x01;
+    le_set_scan_param->filter_policy = 0x00;
 
     bt_hci_cmd(BT_HCI_OP_LE_SET_SCAN_PARAM, sizeof(*le_set_scan_param));
 }
@@ -915,7 +919,7 @@ static void bt_hci_cmd_le_create_conn(void *bdaddr_le) {
     le_create_conn->conn_interval_min = 6;
     le_create_conn->conn_interval_max = 12;
     le_create_conn->conn_latency = 0;
-    le_create_conn->supervision_timeout = 300;
+    le_create_conn->supervision_timeout = 2000; /* 20s; 300 (3s) was too short to survive a second SW2 controller's full init sequence running concurrently */
     le_create_conn->min_ce_len = 0;
     le_create_conn->max_ce_len = 0;
 
@@ -1072,14 +1076,50 @@ static void bt_hci_le_meta_evt_hdlr(struct bt_hci_pkt *bt_hci_evt_pkt) {
                 }
             }
             else {
-                bt_host_get_dev_conf(&device);
-
-                if (!le_conn_complete->status && !atomic_test_bit(&device->flags, BT_DEV_DEVICE_FOUND)) {
-                    atomic_set_bit(&device->flags, BT_DEV_DEVICE_FOUND);
-                    device->acl_handle = le_conn_complete->handle;
+                /* Inbound BLE connection (adapter is peripheral, controller is central).
+                 * If we recognise this peer (have an LTK), allocate a proper bt_dev[] slot
+                 * so ACL routing works for HID/SMP traffic.  Unknown peers (first-time
+                 * pairing) still go to bt_dev_conf so the SMP exchange can proceed. */
+                struct bt_dev *new_dev = NULL;
+                if (!le_conn_complete->status &&
+                    bt_host_load_le_ltk((bt_addr_le_t *)&le_conn_complete->peer_addr, NULL, NULL) == 0 &&
+                    bt_host_get_new_dev(&new_dev) >= 0) {
+                    bt_host_reset_dev(new_dev);
+                    memcpy(&new_dev->le_remote_bdaddr, &le_conn_complete->peer_addr, sizeof(new_dev->le_remote_bdaddr));
+                    new_dev->ids.type = BT_HID_GENERIC;
+                    bt_l2cap_init_dev_scid(new_dev);
+                    atomic_set_bit(&new_dev->flags, BT_DEV_DEVICE_FOUND);
+                    atomic_set_bit(&new_dev->flags, BT_DEV_IS_BLE);
+                    new_dev->acl_handle = le_conn_complete->handle;
+                    device = new_dev;
+                    printf("# Inbound BLE reconnect: dev: %ld\n", new_dev->ids.id);
                 }
                 else {
-                    printf("# dev NULL!\n");
+                    bt_host_get_dev_conf(&device);
+                    if (!le_conn_complete->status && !atomic_test_bit(&device->flags, BT_DEV_DEVICE_FOUND)) {
+                        atomic_set_bit(&device->flags, BT_DEV_DEVICE_FOUND);
+                        device->acl_handle = le_conn_complete->handle;
+                    }
+                    else {
+                        printf("# dev NULL!\n");
+                    }
+                }
+            }
+            /* SW2 controllers connect to us as BLE peripherals; advertising
+             * auto-stops on each accepted connection. The ESP32 cannot advertise,
+             * scan and service connections at the same time, so once we have two
+             * BLE controllers we STOP advertising and scanning to free the radio
+             * for servicing both links (otherwise only the latest one is serviced).
+             * Below two, keep advertising so the next controller can connect. */
+            if (!le_conn_complete->status) {
+                struct bt_dev *free_dev = NULL;
+                if (bt_host_get_flag_dev_cnt(BT_DEV_IS_BLE) < 2
+                    && bt_host_get_new_dev(&free_dev) >= 0) {
+                    bt_hci_cmd_le_set_adv_enable(NULL);
+                }
+                else {
+                    bt_hci_cmd_le_set_scan_enable(0);
+                    bt_hci_cmd_le_set_adv_disable(NULL);
                 }
             }
             break;
@@ -1181,6 +1221,36 @@ skip:
             }
             else {
                 printf("# dev NULL!\n");
+            }
+            break;
+        }
+        case BT_HCI_EVT_LE_LTK_REQUEST:
+        {
+            struct bt_hci_evt_le_ltk_request *ltk_req =
+                (struct bt_hci_evt_le_ltk_request *)(bt_hci_evt_pkt->evt_data + sizeof(struct bt_hci_evt_le_meta_event));
+            printf("# BT_HCI_EVT_LE_LTK_REQUEST handle=0x%04X\n", ltk_req->handle);
+            bt_host_get_dev_from_handle(ltk_req->handle, &device);
+            if (device) {
+                struct bt_smp_encrypt_info encrypt_info = {0};
+                if (bt_host_load_le_ltk(&device->le_remote_bdaddr, &encrypt_info, NULL) == 0) {
+                    struct bt_hci_cp_le_ltk_req_reply *ltk_reply =
+                        (struct bt_hci_cp_le_ltk_req_reply *)&bt_hci_pkt_tmp.cp;
+                    ltk_reply->handle = ltk_req->handle;
+                    memcpy(ltk_reply->ltk, encrypt_info.ltk, sizeof(ltk_reply->ltk));
+                    bt_hci_cmd(BT_HCI_OP_LE_LTK_REQ_REPLY, sizeof(*ltk_reply));
+                }
+                else {
+                    struct bt_hci_cp_le_ltk_req_neg_reply *neg_reply =
+                        (struct bt_hci_cp_le_ltk_req_neg_reply *)&bt_hci_pkt_tmp.cp;
+                    neg_reply->handle = ltk_req->handle;
+                    bt_hci_cmd(BT_HCI_OP_LE_LTK_REQ_NEG_REPLY, sizeof(*neg_reply));
+                }
+            }
+            else {
+                struct bt_hci_cp_le_ltk_req_neg_reply *neg_reply =
+                    (struct bt_hci_cp_le_ltk_req_neg_reply *)&bt_hci_pkt_tmp.cp;
+                neg_reply->handle = ltk_req->handle;
+                bt_hci_cmd(BT_HCI_OP_LE_LTK_REQ_NEG_REPLY, sizeof(*neg_reply));
             }
             break;
         }
@@ -1473,13 +1543,22 @@ void bt_hci_evt_hdlr(struct bt_hci_pkt *bt_hci_evt_pkt) {
                     }
                     bt_hci_cmd_le_set_adv_enable(NULL);
                 }
+                else {
+                    /* Other controllers still connected; re-advertise if a slot freed up. */
+                    struct bt_dev *free_dev = NULL;
+                    if (bt_host_get_new_dev(&free_dev) >= 0) {
+                        bt_hci_cmd_le_set_adv_enable(NULL);
+                    }
+                }
             }
             else {
                 bt_host_get_dev_conf(&device);
                 if (device && disconn_complete->handle == device->acl_handle) {
                     printf("# DISCONN from BLE config interface\n");
                     if (atomic_test_bit(&device->flags, BT_DEV_DEVICE_FOUND)) {
-                        bt_host_reset_dev(device);
+                        /* bt_host_reset_dev skips bt_dev_conf; clear flags directly. */
+                        atomic_clear_bit(&device->flags, BT_DEV_DEVICE_FOUND);
+                        device->acl_handle = 0;
                         if (bt_host_get_active_dev(&device) == BT_NONE) {
                             bt_hci_cmd_le_set_adv_enable(NULL);
                         }

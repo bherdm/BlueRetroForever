@@ -1,6 +1,9 @@
 /*
  * Copyright (c) 2025, Jacques Gagnon
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified 2026, Pierre Cardell (bjerreman):
+ *   Stop inquiry after SW2 slot is confirmed to free the radio.
  */
 
 #include <stdio.h>
@@ -441,6 +444,10 @@ void bt_hid_sw2_hdlr(struct bt_dev *device, uint16_t att_handle, uint8_t *data, 
                     break;
                 case BT_HIDP_SW2_CMD_SET_LED:
                     printf("# BT_HIDP_SW2_CMD_SET_LED\n");
+                    /* Controller slot is confirmed. Stop scanning so the next
+                     * controller can only pair via an explicit button press,
+                     * preventing simultaneous SW2 init races. */
+                    bt_hci_stop_inquiry();
                     device->hid_state++;
                     bt_hid_sw2_exec_next_state(device);
                     break;
