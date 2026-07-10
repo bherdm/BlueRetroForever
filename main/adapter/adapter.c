@@ -136,17 +136,33 @@ static uint32_t adapter_map_from_axis(struct map_cfg * map_cfg) {
                     }
                 }
 
-                float scaled_value = abs_src_value * scale;
-                float scaled_deadzone = deadzone * scale;
+                if (src_relative_n64) {
+                    /* N64 relative-mouse path: gain-then-deadzone (deadzone is 0 here), rounded,
+                       and always emit a minimal step so slow movement is not quantized away. */
+                    float scaled_value = abs_src_value * scale;
+                    float scaled_deadzone = deadzone * scale;
 
-                if (scaled_value > scaled_deadzone) {
-                    float signed_val = dst_sign * (scaled_value - scaled_deadzone);
-                    int32_t value = (int32_t)lroundf(signed_val);
+                    if (scaled_value > scaled_deadzone) {
+                        float signed_val = dst_sign * (scaled_value - scaled_deadzone);
+                        int32_t value = (int32_t)lroundf(signed_val);
 
-                    if (src_relative_n64 && abs_src_value > 0 && value == 0) {
-                        /* N64 mouse path: always emit a minimal step when movement exists. */
-                        value = (signed_val >= 0.f) ? 1 : -1;
+                        if (abs_src_value > 0 && value == 0) {
+                            value = (signed_val >= 0.f) ? 1 : -1;
+                        }
+
+                        if (abs(value) > abs(out->axes[dst_axis_idx].value)) {
+                            out->axes[dst_axis_idx].value = value;
+                            out->axes[dst_axis_idx].cnt_mask = map_cfg->turbo;
+                        }
                     }
+                }
+                else if (abs_src_value > deadzone) {
+                    /* Upstream arithmetic, bit-for-bit: subtract the deadzone in INTEGERS, scale
+                       once, truncate toward zero. Reassociating this in float (a*s - d*s) rounds
+                       three times instead of once and shifts results by +/-1 (208 -> 207.99998). */
+                    int32_t value = abs_src_value - deadzone;
+                    float fvalue = dst_sign * value * scale;
+                    value = (int32_t)fvalue;
 
                     if (abs(value) > abs(out->axes[dst_axis_idx].value)) {
                         out->axes[dst_axis_idx].value = value;
