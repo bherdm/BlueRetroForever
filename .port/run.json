@@ -1,0 +1,13 @@
+{
+  "build":  {"delegate": {"hand": "blueretroforever_build_server", "type": "build",
+                          "params": {"mode": "dev", "hw": "hw1", "config": "n64",
+                                     "ref": "main", "source": {"git": {"ref": "main"}}}}},
+  "test":   {"delegate": {"hand": "blueretroforever_build_server", "type": "qemu_test",
+                          "params": {"mode": "dev", "ref": "main", "source": {"git": {"ref": "main"}}}}},
+  "deploy": {"delegate": {"hand": "blueretroforever_build_server", "type": "deploy",
+                          "params": {"port": "/dev/ttyUSB1",
+                                     "source": {"artifact": {"namespace_id": "builds/BlueRetroForever/build/2026-07-10T2140Z-9317a9f-hw1_n64"}}}}},
+  "debug":  {"delegate": {"hand": "blueretroforever_build_server", "type": "debug",
+                          "params": {"port": "/dev/ttyUSB1",
+                                     "source": {"artifact": {"namespace_id": "builds/BlueRetroForever/build/2026-07-10T2140Z-9317a9f-hw1_n64"}}}}}
+}
