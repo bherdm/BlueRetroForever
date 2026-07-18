@@ -7,6 +7,7 @@
  */
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <esp_timer.h>
 #include "bluetooth/host.h"
 #include "bluetooth/hci.h"
@@ -53,6 +54,76 @@ static bool bt_hid_sw2_calib_data_is_plausible(const uint8_t *data) {
         all_00 |= data[i];
     }
     return all_ff != 0xFF && all_00 != 0x00;
+}
+
+/* SPI flash region each READ_SPI init state requests. The controller echoes the
+ * address & length back in its ack, so we use this both to build the request and
+ * to confirm an ack actually answers the request the current state made. Without
+ * that check a duplicated or out-of-order ack shifts every subsequent read by one
+ * state, which silently stores device-info bytes (an ASCII serial) as the LTK.
+ */
+struct bt_hid_sw2_spi_read {
+    uint32_t addr;
+    uint32_t len;
+};
+
+static const struct bt_hid_sw2_spi_read sw2_spi_read[] = {
+    [SW2_INIT_STATE_READ_INFO] = {0x00013000, 0x40},
+    [SW2_INIT_STATE_READ_LTK] = {0x001FA01A, 0x10},
+    [SW2_INIT_STATE_READ_NEW_LTK] = {0x001FA01A, 0x10},
+    [SW2_INIT_STATE_READ_LEFT_FACTORY_CALIB] = {0x00013080, 0x40},
+    [SW2_INIT_STATE_READ_RIGHT_FACTORY_CALIB] = {0x000130C0, 0x40},
+    [SW2_INIT_STATE_READ_USER_CALIB] = {0x001FC040, 0x40},
+};
+
+/* Ack value layout: [0..3] hdr, [4..7] len (LE32), [8..11] addr (LE32), [12..] payload. */
+#define BT_HIDP_SW2_ACK_LEN_OFFSET 4
+#define BT_HIDP_SW2_ACK_ADDR_OFFSET 8
+#define BT_HIDP_SW2_ACK_DATA_OFFSET 12
+
+static uint32_t bt_hid_sw2_le32(const uint8_t *data) {
+    return (uint32_t)data[0] | ((uint32_t)data[1] << 8)
+        | ((uint32_t)data[2] << 16) | ((uint32_t)data[3] << 24);
+}
+
+static bool bt_hid_sw2_spi_ack_is_expected(struct bt_dev *device, struct bt_hidp_sw2_ack *ack,
+        uint32_t len) {
+    const struct bt_hid_sw2_spi_read *expected;
+    uint32_t ack_addr, ack_len;
+
+    if (device->hid_state >= ARRAY_SIZE(sw2_spi_read)) {
+        return false;
+    }
+
+    expected = &sw2_spi_read[device->hid_state];
+    if (expected->len == 0) {
+        /* Current state does not issue a SPI read. */
+        return false;
+    }
+
+    /* Ack must carry the echoed header plus the payload it claims. Note the caller
+     * derives len from att_len without subtracting the ATT opcode byte, so len runs
+     * one over the true value length; this bound is conservative either way.
+     */
+    if (len < sizeof(*ack) + BT_HIDP_SW2_ACK_DATA_OFFSET + expected->len) {
+        printf("# %s: short SPI ack: %ld\n", __FUNCTION__, len);
+        bt_mon_log(true, "%s: short SPI ack: %ld\n", __FUNCTION__, len);
+        return false;
+    }
+
+    /* Byte-wise to stay clear of unaligned 32-bit loads on Xtensa. */
+    ack_len = bt_hid_sw2_le32(&ack->value[BT_HIDP_SW2_ACK_LEN_OFFSET]);
+    ack_addr = bt_hid_sw2_le32(&ack->value[BT_HIDP_SW2_ACK_ADDR_OFFSET]);
+
+    if (ack_addr != expected->addr || ack_len != expected->len) {
+        printf("# %s: SPI ack mismatch: got %08lX/%02lX want %08lX/%02lX\n", __FUNCTION__,
+            ack_addr, ack_len, expected->addr, expected->len);
+        bt_mon_log(true, "%s: SPI ack mismatch: got %08lX/%02lX want %08lX/%02lX\n", __FUNCTION__,
+            ack_addr, ack_len, expected->addr, expected->len);
+        return false;
+    }
+
+    return true;
 }
 
 static void bt_hid_sw2_set_calib(struct bt_hid_sw2_ctrl_calib *calib, uint8_t *data, uint8_t stick) {
@@ -148,20 +219,33 @@ void bt_hid_sw2_get_calib(int32_t dev_id, struct bt_hid_sw2_ctrl_calib **cal) {
     }
 }
 
+/* Issue the SPI read the given state is defined to make, per sw2_spi_read[]. */
+static void bt_hid_sw2_read_spi(struct bt_dev *device, uint32_t state) {
+    const struct bt_hid_sw2_spi_read *req = &sw2_spi_read[state];
+    uint8_t read_spi[] = {
+        BT_HIDP_SW2_CMD_READ_SPI,
+        BT_HIDP_SW2_REQ_TYPE_REQ,
+        BT_HIDP_SW2_REQ_INT_BLE,
+        BT_HIDP_SW2_SUBCMD_READ_SPI,
+        0x00, 0x08, 0x00, 0x00,
+        (uint8_t)req->len, /* Read len */
+        0x7e, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, /* Read addr, filled below */
+    };
+
+    /* Byte-wise to stay clear of unaligned 32-bit stores on Xtensa. */
+    read_spi[12] = (uint8_t)req->addr;
+    read_spi[13] = (uint8_t)(req->addr >> 8);
+    read_spi[14] = (uint8_t)(req->addr >> 16);
+    read_spi[15] = (uint8_t)(req->addr >> 24);
+    bt_att_cmd_write_cmd(device->acl_handle, BT_HIDP_SW2_CMD_ATT_HDL, read_spi, sizeof(read_spi));
+}
+
 static void bt_hid_sw2_exec_next_state(struct bt_dev *device) {
     switch(device->hid_state) {
         case SW2_INIT_STATE_READ_INFO:
-        {
-            uint8_t read_info[] = {
-                BT_HIDP_SW2_CMD_READ_SPI,
-                BT_HIDP_SW2_REQ_TYPE_REQ,
-                BT_HIDP_SW2_REQ_INT_BLE,
-                BT_HIDP_SW2_SUBCMD_READ_SPI,
-                0x00, 0x08, 0x00, 0x00, 0x40, 0x7e, 0x00, 0x00, 0x00, 0x30, 0x01, 0x00
-            };
-            bt_att_cmd_write_cmd(device->acl_handle, BT_HIDP_SW2_CMD_ATT_HDL, read_info, sizeof(read_info));
+            bt_hid_sw2_read_spi(device, device->hid_state);
             break;
-        }
         case SW2_INIT_STATE_SET_BDADDR:
         {
             uint8_t set_bdaddr[] = {
@@ -183,65 +267,11 @@ static void bt_hid_sw2_exec_next_state(struct bt_dev *device) {
         }
         case SW2_INIT_STATE_READ_LTK:
         case SW2_INIT_STATE_READ_NEW_LTK:
-        {
-            uint8_t read_ltk[] = {
-                BT_HIDP_SW2_CMD_READ_SPI,
-                BT_HIDP_SW2_REQ_TYPE_REQ,
-                BT_HIDP_SW2_REQ_INT_BLE,
-                BT_HIDP_SW2_SUBCMD_READ_SPI,
-                0x00, 0x08, 0x00, 0x00,
-                0x10, /* Read len */
-                0x7e, 0x00, 0x00,
-                0x1a, 0xa0, 0x1f, 0x00, /* LTK offset in SPI flash */
-            };
-            bt_att_cmd_write_cmd(device->acl_handle, BT_HIDP_SW2_CMD_ATT_HDL, read_ltk, sizeof(read_ltk));
-            break;
-        }
         case SW2_INIT_STATE_READ_LEFT_FACTORY_CALIB:
-        {
-            uint8_t read_calib[] = {
-                BT_HIDP_SW2_CMD_READ_SPI,
-                BT_HIDP_SW2_REQ_TYPE_REQ,
-                BT_HIDP_SW2_REQ_INT_BLE,
-                BT_HIDP_SW2_SUBCMD_READ_SPI,
-                0x00, 0x08, 0x00, 0x00,
-                0x40, /* Read len */
-                0x7e, 0x00, 0x00,
-                0x80, 0x30, 0x01, 0x00, /* Left Factory Calib addr */
-            };
-            bt_att_cmd_write_cmd(device->acl_handle, BT_HIDP_SW2_CMD_ATT_HDL, read_calib, sizeof(read_calib));
-            break;
-        }
         case SW2_INIT_STATE_READ_RIGHT_FACTORY_CALIB:
-        {
-            uint8_t read_calib[] = {
-                BT_HIDP_SW2_CMD_READ_SPI,
-                BT_HIDP_SW2_REQ_TYPE_REQ,
-                BT_HIDP_SW2_REQ_INT_BLE,
-                BT_HIDP_SW2_SUBCMD_READ_SPI,
-                0x00, 0x08, 0x00, 0x00,
-                0x40, /* Read len */
-                0x7e, 0x00, 0x00,
-                0xc0, 0x30, 0x01, 0x00, /* Right Factory Calib addr */
-            };
-            bt_att_cmd_write_cmd(device->acl_handle, BT_HIDP_SW2_CMD_ATT_HDL, read_calib, sizeof(read_calib));
-            break;
-        }
         case SW2_INIT_STATE_READ_USER_CALIB:
-        {
-            uint8_t read_calib[] = {
-                BT_HIDP_SW2_CMD_READ_SPI,
-                BT_HIDP_SW2_REQ_TYPE_REQ,
-                BT_HIDP_SW2_REQ_INT_BLE,
-                BT_HIDP_SW2_SUBCMD_READ_SPI,
-                0x00, 0x08, 0x00, 0x00,
-                0x40, /* Read len */
-                0x7e, 0x00, 0x00,
-                0x40, 0xc0, 0x1f, 0x00, /* User Calib addr */
-            };
-            bt_att_cmd_write_cmd(device->acl_handle, BT_HIDP_SW2_CMD_ATT_HDL, read_calib, sizeof(read_calib));
+            bt_hid_sw2_read_spi(device, device->hid_state);
             break;
-        }
         case SW2_INIT_STATE_SET_LED:
         {
             uint8_t led[] = {
@@ -341,6 +371,24 @@ void bt_hid_sw2_hdlr(struct bt_dev *device, uint16_t att_handle, uint8_t *data, 
             }
             switch (ack->cmd) {
                 case BT_HIDP_SW2_CMD_READ_SPI:
+                    /* Only consume a SPI read that answers the request this state made.
+                     * Re-issue on mismatch rather than advancing, so a stray ack cannot
+                     * shift the state machine and misfile the payload.
+                     */
+                    if (!bt_hid_sw2_spi_ack_is_expected(device, ack, len)) {
+                        if (++device->hid_retry_cnt > SW2_INIT_STATE_RETRY_MAX) {
+                            printf("# %s: SPI read retry limit, disconnecting dev: %ld\n",
+                                __FUNCTION__, device->ids.id);
+                            bt_mon_log(true, "%s: SPI read retry limit, disconnecting dev: %ld\n",
+                                __FUNCTION__, device->ids.id);
+                            bt_hci_disconnect(device);
+                        }
+                        else {
+                            bt_hid_sw2_exec_next_state(device);
+                        }
+                        break;
+                    }
+                    device->hid_retry_cnt = 0;
                     switch (device->hid_state) {
                         case SW2_INIT_STATE_READ_INFO:
                         {
