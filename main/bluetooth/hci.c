@@ -1536,6 +1536,19 @@ void bt_hci_evt_hdlr(struct bt_hci_pkt *bt_hci_evt_pkt) {
             bt_host_get_dev_from_handle(disconn_complete->handle, &device);
             if (device) {
                 printf("# DISCONN from dev: %ld\n", device->ids.id);
+                /* A BLE link that dies before HID init completed has most likely failed
+                 * encryption against a stale or corrupt stored LTK. A supervision timeout
+                 * produces no BT_HCI_EVT_ENCRYPT_CHANGE, so the recovery there never runs
+                 * and the bad key would lock this controller out permanently. Drop it and
+                 * let the next attempt pair from scratch.
+                 */
+                if (atomic_test_bit(&device->flags, BT_DEV_IS_BLE)
+                        && !atomic_test_bit(&device->flags, BT_DEV_HID_INIT_DONE)) {
+                    printf("# dev: %ld dropped before HID init, clearing LE LTK\n", device->ids.id);
+                    bt_mon_log(true, "dev: %ld dropped before HID init, clearing LE LTK\n",
+                        device->ids.id);
+                    bt_host_clear_le_ltk(&device->le_remote_bdaddr);
+                }
                 bt_host_reset_dev(device);
                 if (bt_host_get_active_dev(&device) == BT_NONE) {
                     if (config.global_cfg.inquiry_mode == INQ_AUTO) {
