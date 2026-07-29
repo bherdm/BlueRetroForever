@@ -1,13 +1,14 @@
 {
   "build":  {"delegate": {"hand": "blueretroforever_build_server", "type": "build",
-                          "params": {"mode": "dev", "hw": "hw1", "config": "n64",
-                                     "ref": "main", "source": {"git": {"ref": "main"}}}}},
+                          "params": {"mode": "dev", "hw": "hw1", "config": "n64"}}},
+
   "test":   {"delegate": {"hand": "blueretroforever_build_server", "type": "qemu_test",
-                          "params": {"mode": "dev", "ref": "main", "source": {"git": {"ref": "main"}}}}},
-  "deploy": {"delegate": {"hand": "blueretroforever_build_server", "type": "deploy",
-                          "params": {"port": "/dev/ttyUSB0",
-                                     "source": {"artifact": {"namespace_id": "builds/BlueRetroForever/build/2026-07-11T1545Z-dirty-8c52781b-hw1_n64"}}}}},
-  "debug":  {"delegate": {"hand": "blueretroforever_build_server", "type": "debug",
-                          "params": {"port": "/dev/ttyUSB0",
-                                     "source": {"artifact": {"namespace_id": "builds/BlueRetroForever/build/2026-07-11T1545Z-dirty-8c52781b-hw1_n64"}}}}}
+                          "params": {"mode": "dev"}}},
+
+  "deploy": {"delegate": {"hand": "blueretro_pipeline", "type": "run",
+                          "params": {"mode": "deploy", "hw": "hw1", "config": "n64"}}},
+
+  "debug":  {"delegate": {"hand": "blueretro_pipeline", "type": "run",
+                          "params": {"mode": "deploy", "hw": "hw1", "config": "n64",
+                                     "capture": true, "until": "Returned from app_main"}}}
 }
