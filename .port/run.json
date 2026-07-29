@@ -6,9 +6,9 @@
                           "params": {"mode": "dev"}}},
 
   "deploy": {"delegate": {"hand": "blueretro_pipeline", "type": "run",
-                          "params": {"mode": "deploy", "hw": "hw1", "config": "n64"}}},
+                          "params": {"hw": "hw1", "config": "n64"}}},
 
   "debug":  {"delegate": {"hand": "blueretro_pipeline", "type": "run",
-                          "params": {"mode": "deploy", "hw": "hw1", "config": "n64",
+                          "params": {"hw": "hw1", "config": "n64",
                                      "capture": true, "until": "Returned from app_main"}}}
 }
