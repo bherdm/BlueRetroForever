@@ -1,14 +1,44 @@
 {
-  "build":  {"delegate": {"hand": "blueretroforever_build_server", "type": "build",
-                          "params": {"mode": "dev", "hw": "hw1", "config": "n64"}}},
-
-  "test":   {"delegate": {"hand": "blueretroforever_build_server", "type": "qemu_test",
-                          "params": {"mode": "dev"}}},
-
-  "deploy": {"delegate": {"hand": "blueretro_pipeline", "type": "run",
-                          "params": {"hw": "hw1", "config": "n64"}}},
-
-  "debug":  {"delegate": {"hand": "blueretro_pipeline", "type": "run",
-                          "params": {"hw": "hw1", "config": "n64",
-                                     "capture": true, "until": "Returned from app_main"}}}
+  "build": {
+    "delegate": {
+      "hand": "blueretroforever_build_server",
+      "type": "build",
+      "params": {
+        "mode": "dev",
+        "hw": "hw1",
+        "config": "n64"
+      }
+    }
+  },
+  "test": {
+    "delegate": {
+      "hand": "blueretroforever_build_server",
+      "type": "qemu_test",
+      "params": {
+        "mode": "dev"
+      }
+    }
+  },
+  "deploy": {
+    "delegate": {
+      "hand": "blueretro_harness",
+      "type": "run",
+      "params": {
+        "hw": "hw1",
+        "config": "n64"
+      }
+    }
+  },
+  "debug": {
+    "delegate": {
+      "hand": "blueretro_harness",
+      "type": "run",
+      "params": {
+        "hw": "hw1",
+        "config": "n64",
+        "capture": true,
+        "until": "Returned from app_main"
+      }
+    }
+  }
 }
