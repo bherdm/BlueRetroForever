@@ -114,7 +114,9 @@ static inline void n64_mouse_mapper_load_cfg(uint8_t port) {
     mouse_mapper_init(&mouse_state[port], &mouse_cfg[port]);
 }
 
-static const uint32_t n64_mask[4] = {0x77DF0FFF, 0x00000000, 0x00000000, BR_COMBO_MASK};
+/* Include PAD_MS so it can be used as an N64-specific mode toggle
+ * without being sent to the console as a normal N64 button. */
+static const uint32_t n64_mask[4] = {0x77DF0FFF | BIT(PAD_MS), 0x00000000, 0x00000000, BR_COMBO_MASK};
 static const uint32_t n64_desc[4] = {0x0000000F, 0x00000000, 0x00000000, 0x00000000};
 static DRAM_ATTR const uint32_t n64_btns_mask[32] = {
     0, 0, 0, 0,
@@ -126,6 +128,14 @@ static DRAM_ATTR const uint32_t n64_btns_mask[32] = {
     BIT(N64_Z), BIT(N64_L), BIT(N64_C_UP), 0,
     BIT(N64_Z), BIT(N64_R), BIT(N64_C_RIGHT), 0,
 };
+
+/* Per-output D-pad -> analogue mode.
+ * Default is false, so the D-pad behaves normally after boot. */
+static bool n64_dpad_analog_mode[WIRED_MAX_DEV] = {false};
+static bool n64_pad_ms_was_pressed[WIRED_MAX_DEV] = {false};
+
+#define N64_DPAD_ANALOG_CARDINAL 80
+#define N64_DPAD_ANALOG_DIAGONAL 68
 
 static const uint32_t n64_mouse_mask[4] = {0x110000F0, 0x00000000, 0x00000000, BR_COMBO_MASK};
 static const uint32_t n64_mouse_desc[4] = {0x000000F0, 0x00000000, 0x00000000, 0x00000000};
@@ -247,6 +257,28 @@ void n64_meta_init(struct wired_ctrl *ctrl_data) {
 }
 
 static void n64_ctrl_special_action(struct wired_ctrl *ctrl_data, struct wired_data *wired_data) {
+    /* PAD_MS toggles the D-pad between native N64 input and analogue-stick output.
+     * Short feedback indicates analogue mode; long feedback indicates native mode.
+     */
+    if (ctrl_data->map_mask[0] & generic_btns_mask[PAD_MS]) {
+        bool pad_ms_pressed = (ctrl_data->btns[0].value & generic_btns_mask[PAD_MS]) != 0;
+
+        if (pad_ms_pressed && !n64_pad_ms_was_pressed[ctrl_data->index]) {
+            n64_dpad_analog_mode[ctrl_data->index] = !n64_dpad_analog_mode[ctrl_data->index];
+
+            if (n64_dpad_analog_mode[ctrl_data->index]) {
+                adapter_toggle_fb(ctrl_data->index, 180000, 0x80, 0x60);
+                printf("# %s: D-pad analogue mode enabled\n", __FUNCTION__);
+            }
+            else {
+                adapter_toggle_fb(ctrl_data->index, 650000, 0x80, 0x60);
+                printf("# %s: D-pad native mode enabled\n", __FUNCTION__);
+            }
+        }
+
+        n64_pad_ms_was_pressed[ctrl_data->index] = pad_ms_pressed;
+    }
+
     /* Memory / Rumble toggle */
     if (ctrl_data->map_mask[0] & generic_btns_mask[PAD_MT]) {
         if (ctrl_data->btns[0].value & generic_btns_mask[PAD_MT]) {
@@ -326,6 +358,41 @@ static void n64_ctrl_from_generic(struct wired_ctrl *ctrl_data, struct wired_dat
             }
         }
         wired_data->cnt_mask[axis_to_btn_id(i)] = ctrl_data->axes[i].cnt_mask;
+    }
+
+    /* In analogue-D-pad mode, suppress the real N64 D-pad and temporarily
+     * override the left analogue stick only while a D-pad direction is held.
+     * Releasing the D-pad immediately returns control to the physical stick. */
+    if (n64_dpad_analog_mode[ctrl_data->index]) {
+        uint32_t btns = ctrl_data->btns[0].value;
+        int32_t x = 0;
+        int32_t y = 0;
+
+        map_tmp.buttons &= ~(BIT(N64_LD_RIGHT) | BIT(N64_LD_LEFT) | BIT(N64_LD_DOWN) | BIT(N64_LD_UP));
+
+        if (btns & generic_btns_mask[PAD_LD_LEFT]) {
+            x -= 1;
+        }
+        if (btns & generic_btns_mask[PAD_LD_RIGHT]) {
+            x += 1;
+        }
+        if (btns & generic_btns_mask[PAD_LD_DOWN]) {
+            y -= 1;
+        }
+        if (btns & generic_btns_mask[PAD_LD_UP]) {
+            y += 1;
+        }
+
+        if (x || y) {
+            if (x && y) {
+                map_tmp.axes[n64_axes_idx[AXIS_LX]] = (uint8_t)(int8_t)(x * N64_DPAD_ANALOG_DIAGONAL);
+                map_tmp.axes[n64_axes_idx[AXIS_LY]] = (uint8_t)(int8_t)(y * N64_DPAD_ANALOG_DIAGONAL);
+            }
+            else {
+                map_tmp.axes[n64_axes_idx[AXIS_LX]] = (uint8_t)(int8_t)(x * N64_DPAD_ANALOG_CARDINAL);
+                map_tmp.axes[n64_axes_idx[AXIS_LY]] = (uint8_t)(int8_t)(y * N64_DPAD_ANALOG_CARDINAL);
+            }
+        }
     }
 
     memcpy(wired_data->output, (void *)&map_tmp, sizeof(map_tmp));
