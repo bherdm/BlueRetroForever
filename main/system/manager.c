@@ -538,13 +538,24 @@ static void sys_mgr_factory_reset(void) {
     esp_restart();
 }
 
+/* Before a restart or a sleep, tell every peer the link is going, as factory reset does. Left
+ * alone, the link just stops, and each peer times it out: a phone waited ~10 s to see the adapter
+ * gone after a restart, and after every OTA update. The short wait first lets the reply to the
+ * write that asked for this (the restart command, the OTA end) go out ahead of the disconnect,
+ * so the asker hears yes before goodbye; the whole still takes the second it always has. */
+static void sys_mgr_disconnect_before_going(void) {
+    vTaskDelay(200 / portTICK_PERIOD_MS);
+    bt_host_disconnect_all();
+    vTaskDelay(800 / portTICK_PERIOD_MS);
+}
+
 static void sys_mgr_esp_restart(void) {
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    sys_mgr_disconnect_before_going();
     esp_restart();
 }
 
 static void sys_mgr_deep_sleep(void) {
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    sys_mgr_disconnect_before_going();
     esp_deep_sleep_start();
 }
 

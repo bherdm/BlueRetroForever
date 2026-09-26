@@ -451,7 +451,7 @@ uint32_t bt_host_get_flag_dev_cnt(uint32_t flag) {
 }
 
 void bt_host_disconnect_all(void) {
-    printf("# %s BOOT SW pressed, DISCONN all devices!\n", __FUNCTION__);
+    printf("# %s: disconnecting every device\n", __FUNCTION__);
     for (uint32_t i = 0; i < BT_MAX_DEV; i++) {
         if (atomic_test_bit(&bt_dev[i].flags, BT_DEV_DEVICE_FOUND)) {
             bt_hci_disconnect(&bt_dev[i]);
