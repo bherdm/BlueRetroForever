@@ -463,6 +463,8 @@ static void bt_att_cfg_cmd_rd_hdlr(uint16_t handle) {
 }
 
 static void bt_att_cfg_cmd_wr_hdlr(struct bt_dev *device, uint8_t *data, uint32_t len) {
+    uint32_t failed = 0;
+
     cfg_cmd = data[0];
 
     switch (cfg_cmd) {
@@ -485,23 +487,27 @@ static void bt_att_cfg_cmd_wr_hdlr(struct bt_dev *device, uint8_t *data, uint32_
             else {
                 esp_ota_abort(ota_hdl);
                 ota_hdl = 0;
+                failed = 1;
                 printf("# OTA FW Update start fail\n");
             }
             break;
         case CFG_CMD_OTA_END:
             if (esp_ota_end(ota_hdl) == 0) {
                 if (esp_ota_set_boot_partition(update_partition) == 0) {
-                    ota_hdl = 0;
                     sys_mgr_cmd(SYS_MGR_CMD_ADAPTER_RST);
                     printf("# OTA FW Update sucessfull! Restarting...\n");
                 }
                 else {
+                    failed = 1;
                     printf("# OTA FW Update set partition fail\n");
                 }
             }
             else {
+                failed = 1;
                 printf("# OTA FW Update end fail\n");
             }
+            /* esp_ota_end frees the handle whether or not the image passed. */
+            ota_hdl = 0;
             break;
         case CFG_CMD_SYS_DEEP_SLEEP:
             printf("# ESP32 going in deep sleep\n");
@@ -552,7 +558,15 @@ static void bt_att_cfg_cmd_wr_hdlr(struct bt_dev *device, uint8_t *data, uint32_
         default:
             break;
     }
-    bt_att_cmd_wr_rsp(device->acl_handle);
+
+    /* An update that failed to start or to end is answered with an error, so the asker knows: a
+     * write response says the update took, and the adapter then never restarts. */
+    if (failed) {
+        bt_att_cmd_error_rsp(device->acl_handle, BT_ATT_OP_WRITE_REQ, BR_CFG_CMD_CHRC_HDL, BT_ATT_ERR_UNLIKELY);
+    }
+    else {
+        bt_att_cmd_wr_rsp(device->acl_handle);
+    }
 }
 
 void bt_att_cfg_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, uint32_t len) {
