@@ -4,6 +4,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 #include <dirent.h>
 #include <esp_ota_ops.h>
 #include <esp_system.h>
@@ -306,24 +307,32 @@ static void bt_att_cfg_cmd_abi_ver_rsp(uint16_t handle) {
     bt_att_cmd(handle, BT_ATT_OP_READ_RSP, 1);
 }
 
+/* The descriptor's text fields are 32 bytes, NUL-padded. Answer with the text itself, as long as
+ * the link allows, like every other read here: a fixed 23 bytes cut "v25.10-beta-64dd-kb-mouse"
+ * to "v25.10-beta-64dd-kb-mou" on a link that could carry all of it. */
+static void bt_att_cfg_cmd_desc_text_rsp(uint16_t handle, const char *text, size_t size) {
+    uint32_t len = strnlen(text, size);
+
+    if (len > (mtu - 1)) {
+        len = mtu - 1;
+    }
+
+    memcpy(bt_hci_pkt_tmp.att_data, text, len);
+    printf("# %s %.*s\n", __FUNCTION__, (int)len, text);
+
+    bt_att_cmd(handle, BT_ATT_OP_READ_RSP, len);
+}
+
 static void bt_att_cfg_cmd_fw_ver_rsp(uint16_t handle) {
     const esp_app_desc_t *app_desc = esp_app_get_description();
 
-    memcpy(bt_hci_pkt_tmp.att_data, app_desc->version, 23);
-    bt_hci_pkt_tmp.att_data[23] = 0;
-    printf("# %s %s\n", __FUNCTION__, bt_hci_pkt_tmp.att_data);
-
-    bt_att_cmd(handle, BT_ATT_OP_READ_RSP, 23);
+    bt_att_cfg_cmd_desc_text_rsp(handle, app_desc->version, sizeof(app_desc->version));
 }
 
 static void bt_att_cfg_cmd_fw_name_rsp(uint16_t handle) {
     const esp_app_desc_t *app_desc = esp_app_get_description();
 
-    memcpy(bt_hci_pkt_tmp.att_data, app_desc->project_name, 23);
-    bt_hci_pkt_tmp.att_data[23] = 0;
-    printf("# %s %s\n", __FUNCTION__, bt_hci_pkt_tmp.att_data);
-
-    bt_att_cmd(handle, BT_ATT_OP_READ_RSP, 23);
+    bt_att_cfg_cmd_desc_text_rsp(handle, app_desc->project_name, sizeof(app_desc->project_name));
 }
 
 static void bt_att_cfg_cmd_bdaddr_rsp(uint16_t handle) {
