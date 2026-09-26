@@ -534,6 +534,7 @@ static void sys_mgr_factory_reset(void) {
     fs_reset();
     printf("BlueRetro factory reset\n");
     bt_host_disconnect_all();
+    bt_host_disconnect_conf();
     vTaskDelay(1000 / portTICK_PERIOD_MS);
     esp_restart();
 }
@@ -546,6 +547,7 @@ static void sys_mgr_factory_reset(void) {
 static void sys_mgr_disconnect_before_going(void) {
     vTaskDelay(200 / portTICK_PERIOD_MS);
     bt_host_disconnect_all();
+    bt_host_disconnect_conf();
     vTaskDelay(800 / portTICK_PERIOD_MS);
 }
 

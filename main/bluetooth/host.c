@@ -459,6 +459,14 @@ void bt_host_disconnect_all(void) {
     }
 }
 
+/* The config interface's central: a phone or a browser, booked apart from the controllers. */
+void bt_host_disconnect_conf(void) {
+    if (atomic_test_bit(&bt_dev_conf.flags, BT_DEV_DEVICE_FOUND)) {
+        printf("# %s: disconnecting the config interface\n", __FUNCTION__);
+        bt_hci_disconnect(&bt_dev_conf);
+    }
+}
+
 int32_t bt_host_get_new_dev(struct bt_dev **device) {
     for (uint32_t i = 0; i < BT_MAX_DEV; i++) {
         if (!atomic_test_bit(&bt_dev[i].flags, BT_DEV_DEVICE_FOUND)) {

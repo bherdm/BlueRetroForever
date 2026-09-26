@@ -132,6 +132,7 @@ extern struct bt_hci_pkt bt_hci_pkt_tmp;
 
 uint32_t bt_host_get_flag_dev_cnt(uint32_t flag);
 void bt_host_disconnect_all(void);
+void bt_host_disconnect_conf(void);
 int32_t bt_host_get_new_dev(struct bt_dev **device);
 int32_t bt_host_get_active_dev(struct bt_dev **device);
 int32_t bt_host_get_hid_init_dev(struct bt_dev **device);
