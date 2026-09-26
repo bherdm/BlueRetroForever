@@ -30,6 +30,14 @@ VID_NINTENDO, PID_NSO_GC = 0x057E, 0x2073
 USER_CALIB_MAGIC = 0xA1B2
 PRE_CALIB_REPORT_LIMIT = 180
 
+# The SPI flash reads of the bring-up, in order: what the adapter asks for at each step, which
+# the controller echoes back at the head of its answer (length, then address, then the data).
+SPI_INFO = (0x00013000, 0x40)
+SPI_LTK = (0x001FA01A, 0x10)
+SPI_LEFT_CALIB = (0x00013080, 0x40)
+SPI_RIGHT_CALIB = (0x000130C0, 0x40)
+SPI_USER_CALIB = (0x001FC040, 0x40)
+
 BLE_GC_PAD = [[system.GC, dev_mode.PAD, bt_conn_type.BT_LE]]
 
 
@@ -44,36 +52,50 @@ def stick_calib(x_neutral, y_neutral, x_max, y_max, x_min, y_min):
 
 
 def ack(cmd, subcmd, value=b'', kind=TYPE_RSP):
-    ''' An ack notification: command, type, interface, subcommand, then a 64-byte value. '''
-    return bytes([cmd, kind, INT_BLE, subcmd]).hex() + value.ljust(64, b'\0').hex()
+    ''' An ack notification: command, type, interface, subcommand, then the value, 76 bytes. '''
+    return bytes([cmd, kind, INT_BLE, subcmd]).hex() + value.ljust(76, b'\0').hex()
 
 
-def info_value(vid=VID_NINTENDO, pid=PID_NSO_GC):
-    ''' The controller's identity, where the adapter reads it. '''
-    value = bytearray(64)
-    value[30:32] = vid.to_bytes(2, 'little')
-    value[32:34] = pid.to_bytes(2, 'little')
-    return bytes(value)
+def spi_ack(read, payload=b'', kind=TYPE_RSP):
+    ''' The answer to a SPI flash read: the length and address asked for, then the data at 12. '''
+    address, length = read
+    value = bytearray(76)
+    value[4:8] = length.to_bytes(4, 'little')
+    value[8:12] = address.to_bytes(4, 'little')
+    value[12:12 + len(payload)] = payload
+    return ack(CMD_READ_SPI, SUBCMD_READ_SPI, bytes(value), kind)
 
 
-def factory_calib_value(calib):
-    ''' A factory calibration read: the nine bytes sit at offset 52; erased flash reads 0xFF. '''
-    value = bytearray(b'\xff' * 64)
+def info_data(vid=VID_NINTENDO, pid=PID_NSO_GC):
+    ''' The controller's identity block, with the vendor and product where the adapter reads them. '''
+    data = bytearray(64)
+    data[18:20] = vid.to_bytes(2, 'little')
+    data[20:22] = pid.to_bytes(2, 'little')
+    return bytes(data)
+
+
+def factory_calib_data(calib):
+    ''' A factory calibration block: the nine bytes sit 40 in; erased flash reads 0xFF. '''
+    data = bytearray(b'\xff' * 64)
     if calib:
-        value[52:61] = calib
-    return bytes(value)
+        data[40:49] = calib
+    return bytes(data)
 
 
-def user_calib_value(left=None, right=None):
-    ''' A user calibration read: a magic word ahead of each stick's nine bytes when it is set. '''
-    value = bytearray(b'\xff' * 64)
+def user_calib_data(left=None, right=None):
+    ''' A user calibration block: a magic word ahead of each stick's nine bytes when it is set. '''
+    data = bytearray(b'\xff' * 64)
     if left:
-        value[12:14] = USER_CALIB_MAGIC.to_bytes(2, 'little')
-        value[14:23] = left
+        data[0:2] = USER_CALIB_MAGIC.to_bytes(2, 'little')
+        data[2:11] = left
     if right:
-        value[44:46] = USER_CALIB_MAGIC.to_bytes(2, 'little')
-        value[46:55] = right
-    return bytes(value)
+        data[32:34] = USER_CALIB_MAGIC.to_bytes(2, 'little')
+        data[34:43] = right
+    return bytes(data)
+
+
+LTK_STORED = b'\xaa' * 16
+LTK_NEW = b'\xbb' * 16
 
 
 def report(buttons=0, lx=0x800, ly=0x800, rx=0x800, ry=0x800, lt=None, rt=None):
@@ -103,14 +125,14 @@ def bring_up(blueretro, left=None, right=None, user_left=None, user_right=None):
     assert rsp['device_name']['device_type'] == bt_type.SW2
     assert rsp['device_name']['device_subtype'] == bt_subtype.SUBTYPE_DEFAULT
 
-    blueretro.send_att_notify(ACK_HDL, ack(CMD_READ_SPI, SUBCMD_READ_SPI, info_value()))
-    blueretro.send_att_notify(ACK_HDL, ack(CMD_READ_SPI, SUBCMD_READ_SPI, b'\0' * 12 + b'\xaa' * 16))
+    blueretro.send_att_notify(ACK_HDL, spi_ack(SPI_INFO, info_data()))
+    blueretro.send_att_notify(ACK_HDL, spi_ack(SPI_LTK, LTK_STORED))
     for step in PAIRING_STEPS:
         blueretro.send_att_notify(ACK_HDL, ack(CMD_PAIRING, step))
-    blueretro.send_att_notify(ACK_HDL, ack(CMD_READ_SPI, SUBCMD_READ_SPI, b'\0' * 12 + b'\xbb' * 16))
-    blueretro.send_att_notify(ACK_HDL, ack(CMD_READ_SPI, SUBCMD_READ_SPI, factory_calib_value(left)))
-    blueretro.send_att_notify(ACK_HDL, ack(CMD_READ_SPI, SUBCMD_READ_SPI, factory_calib_value(right)))
-    rsp = blueretro.send_att_notify(ACK_HDL, ack(CMD_READ_SPI, SUBCMD_READ_SPI, user_calib_value(user_left, user_right)))
+    blueretro.send_att_notify(ACK_HDL, spi_ack(SPI_LTK, LTK_NEW))
+    blueretro.send_att_notify(ACK_HDL, spi_ack(SPI_LEFT_CALIB, factory_calib_data(left)))
+    blueretro.send_att_notify(ACK_HDL, spi_ack(SPI_RIGHT_CALIB, factory_calib_data(right)))
+    rsp = blueretro.send_att_notify(ACK_HDL, spi_ack(SPI_USER_CALIB, user_calib_data(user_left, user_right)))
     blueretro.send_att_notify(ACK_HDL, ack(CMD_SET_LED, SUBCMD_SET_LED))
     settle(blueretro)
     return rsp
@@ -142,7 +164,7 @@ def test_sw2_gc_reports_flow_once_the_calibration_never_comes(blueretro):
     ''' A controller whose calibration reads keep failing still works, on the defaults. '''
     rsp = blueretro.send_name(DEVICE_NAME)
     assert rsp['device_name']['device_type'] == bt_type.SW2
-    blueretro.send_att_notify(ACK_HDL, ack(CMD_READ_SPI, SUBCMD_READ_SPI, info_value()))
+    blueretro.send_att_notify(ACK_HDL, spi_ack(SPI_INFO, info_data()))
 
     for _ in range(PRE_CALIB_REPORT_LIMIT):
         rsp = blueretro.send_att_notify(REPORT_HDL, report())
@@ -167,31 +189,55 @@ def test_sw2_gc_error_ack_is_ignored(blueretro):
     right = stick_calib(0x810, 0x7F0, 0x460, 0x470, 0x450, 0x440)
     garbage = stick_calib(0x123, 0x456, 0x100, 0x100, 0x100, 0x100)
 
-    rsp = blueretro.send_name(DEVICE_NAME)
-    assert rsp['device_name']['device_type'] == bt_type.SW2
-    blueretro.send_att_notify(ACK_HDL, ack(CMD_READ_SPI, SUBCMD_READ_SPI, info_value()))
-    blueretro.send_att_notify(ACK_HDL, ack(CMD_READ_SPI, SUBCMD_READ_SPI, b'\0' * 12 + b'\xaa' * 16))
-    for step in PAIRING_STEPS:
-        blueretro.send_att_notify(ACK_HDL, ack(CMD_PAIRING, step))
-    blueretro.send_att_notify(ACK_HDL, ack(CMD_READ_SPI, SUBCMD_READ_SPI, b'\0' * 12 + b'\xbb' * 16))
+    bring_up_to_the_calibration(blueretro)
 
     # The left factory calibration read fails: an error ack, carrying whatever was in the buffer.
-    rsp = blueretro.send_att_notify(ACK_HDL, ack(CMD_READ_SPI, SUBCMD_READ_SPI, factory_calib_value(garbage), kind=TYPE_ERR))
+    rsp = blueretro.send_att_notify(ACK_HDL, spi_ack(SPI_LEFT_CALIB, factory_calib_data(garbage), kind=TYPE_ERR))
     assert 'calib_data' not in rsp
 
-    # Then it succeeds, and the rest follows: the calibration must be the real one.
-    blueretro.send_att_notify(ACK_HDL, ack(CMD_READ_SPI, SUBCMD_READ_SPI, factory_calib_value(left)))
-    rsp = blueretro.send_att_notify(ACK_HDL, ack(CMD_READ_SPI, SUBCMD_READ_SPI, factory_calib_value(right)))
+    finish_the_calibration(blueretro, left, right)
+
+
+@pytest.mark.parametrize('blueretro', BLE_GC_PAD, indirect=True)
+def test_sw2_gc_reply_to_another_read_is_not_consumed(blueretro):
+    ''' An answer to a read other than the one just made is not taken for it. '''
+    left = stick_calib(0x7B0, 0x830, 0x4B0, 0x4A0, 0x480, 0x4C0)
+    right = stick_calib(0x810, 0x7F0, 0x460, 0x470, 0x450, 0x440)
+    stray = stick_calib(0x123, 0x456, 0x100, 0x100, 0x100, 0x100)
+
+    bring_up_to_the_calibration(blueretro)
+
+    # Waiting on the left calibration, a well-formed answer for the right one arrives instead.
+    rsp = blueretro.send_att_notify(ACK_HDL, spi_ack(SPI_RIGHT_CALIB, factory_calib_data(stray)))
+    assert 'calib_data' not in rsp
+
+    finish_the_calibration(blueretro, left, right)
+
+
+def bring_up_to_the_calibration(blueretro):
+    ''' The bring-up as far as the first calibration read. '''
+    rsp = blueretro.send_name(DEVICE_NAME)
+    assert rsp['device_name']['device_type'] == bt_type.SW2
+    blueretro.send_att_notify(ACK_HDL, spi_ack(SPI_INFO, info_data()))
+    blueretro.send_att_notify(ACK_HDL, spi_ack(SPI_LTK, LTK_STORED))
+    for step in PAIRING_STEPS:
+        blueretro.send_att_notify(ACK_HDL, ack(CMD_PAIRING, step))
+    blueretro.send_att_notify(ACK_HDL, spi_ack(SPI_LTK, LTK_NEW))
+
+
+def finish_the_calibration(blueretro, left, right):
+    ''' The calibration reads answered properly, then a stick at its calibrated centre is at rest. '''
+    blueretro.send_att_notify(ACK_HDL, spi_ack(SPI_LEFT_CALIB, factory_calib_data(left)))
+    rsp = blueretro.send_att_notify(ACK_HDL, spi_ack(SPI_RIGHT_CALIB, factory_calib_data(right)))
     assert rsp['calib_data']['neutral'] == [0x7B0, 0x830, 0x810, 0x7F0]
     assert rsp['calib_data']['rel_max'] == [0x4B0, 0x4A0, 0x460, 0x470]
     assert rsp['calib_data']['rel_min'] == [0x480, 0x4C0, 0x450, 0x440]
 
-    rsp = blueretro.send_att_notify(ACK_HDL, ack(CMD_READ_SPI, SUBCMD_READ_SPI, user_calib_value()))
+    rsp = blueretro.send_att_notify(ACK_HDL, spi_ack(SPI_USER_CALIB, user_calib_data()))
     assert rsp['calib_data']['neutral'] == [0x7B0, 0x830, 0x810, 0x7F0]
     blueretro.send_att_notify(ACK_HDL, ack(CMD_SET_LED, SUBCMD_SET_LED))
     settle(blueretro)
 
-    # A stick resting at its calibrated centre is at rest on the wire.
     rsp = blueretro.send_att_notify(REPORT_HDL, report(lx=0x7B0, ly=0x830, rx=0x810, ry=0x7F0))
     for ax in islice(axis, 0, 4):
         assert rsp['generic_input']['axes'][ax] == 0
