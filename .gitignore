@@ -67,4 +67,4 @@ __pycache__/
 .vscode/settings.json
 trace/
 **/.DS_Store
-
+CLAUDE.md
