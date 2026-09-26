@@ -111,7 +111,13 @@ static void wl_init_task(void *arg) {
     ESP_ERROR_CHECK(ret);
 
     config_init(DEFAULT_CFG);
+
+#ifndef CONFIG_BLUERETRO_QEMU
+    /* The card's 128 KB is most of the ~176 KB internal heap. QEMU never brings the card up
+     * (mc_init below is skipped), so it must not take the memory either: the test server got
+     * only what was left, and whether the bigger replies fit came down to the build's layout. */
     mc_init_mem();
+#endif
 
 #ifndef CONFIG_BLUERETRO_BT_DISABLE
     if (bt_host_init()) {
