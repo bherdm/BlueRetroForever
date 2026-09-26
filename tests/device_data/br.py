@@ -17,6 +17,7 @@ class bt_type(IntEnum):
     WII = auto()
     PS = auto()
     SW = auto()
+    SW2 = auto()
 
 
 class bt_subtype(IntEnum):
