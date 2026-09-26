@@ -11,6 +11,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/ringbuf.h>
+#include <esp_timer.h>
 #include "host.h"
 #include "l2cap.h"
 #include "mon.h"
@@ -216,6 +217,47 @@ static void bt_hci_q_conf(uint32_t next) {
     }
     if (bt_config_state < ARRAY_SIZE(bt_hci_config)) {
         bt_hci_config[bt_config_state].cmd(bt_hci_config[bt_config_state].cp);
+    }
+}
+
+/* An LE connect the peer never answers: it stopped advertising after the connect went out,
+ * and the controller then waits for it for ever, scanning for nothing else. After this long
+ * the connect is cancelled, which the controller reports as a failed connection, and the
+ * usual path frees the slot and scans again. A controller in pairing mode advertises many
+ * times a second, so three seconds of silence means it is gone. */
+#define BT_HCI_LE_CONN_TIMEOUT_US (3 * 1000000)
+
+static esp_timer_handle_t le_conn_timer = NULL;
+
+static void bt_hci_le_conn_timeout(void *arg) {
+    /* Sent from the timer's task, so in a packet of its own, not the host task's scratch one. */
+    struct {
+        struct bt_hci_h4_hdr h4_hdr;
+        struct bt_hci_cmd_hdr cmd_hdr;
+    } __packed cancel = {
+        .h4_hdr.type = BT_HCI_H4_TYPE_CMD,
+        .cmd_hdr.opcode = BT_HCI_OP_LE_CREATE_CONN_CANCEL,
+        .cmd_hdr.param_len = 0,
+    };
+    printf("# %s: no answer to the LE connect, cancelling it\n", __FUNCTION__);
+    bt_host_txq_add((uint8_t *)&cancel, sizeof(cancel));
+}
+
+static void bt_hci_le_conn_timer_start(void) {
+    if (le_conn_timer == NULL) {
+        const esp_timer_create_args_t args = {
+            .callback = bt_hci_le_conn_timeout,
+            .name = "le_conn",
+        };
+        esp_timer_create(&args, &le_conn_timer);
+    }
+    esp_timer_stop(le_conn_timer);
+    esp_timer_start_once(le_conn_timer, BT_HCI_LE_CONN_TIMEOUT_US);
+}
+
+static void bt_hci_le_conn_timer_stop(void) {
+    if (le_conn_timer) {
+        esp_timer_stop(le_conn_timer);
     }
 }
 
@@ -1035,7 +1077,8 @@ static void bt_hci_le_meta_evt_hdlr(struct bt_hci_pkt *bt_hci_evt_pkt) {
         {
             struct bt_hci_evt_le_conn_complete *le_conn_complete =
                 (struct bt_hci_evt_le_conn_complete *)(bt_hci_evt_pkt->evt_data + sizeof(struct bt_hci_evt_le_meta_event));
-            printf("# BT_HCI_EVT_LE_CONN_COMPLETE\n");
+            printf("# BT_HCI_EVT_LE_CONN_COMPLETE status: 0x%02X\n", le_conn_complete->status);
+            bt_hci_le_conn_timer_stop();
             bt_host_get_dev_from_bdaddr(le_conn_complete->peer_addr.a.val, &device);
             if (device) {
                 if (le_conn_complete->status) {
