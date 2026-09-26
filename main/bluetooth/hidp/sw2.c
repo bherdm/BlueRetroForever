@@ -495,6 +495,12 @@ void bt_hid_sw2_hdlr(struct bt_dev *device, uint16_t att_handle, uint8_t *data, 
                     bt_hid_sw2_exec_next_state(device);
                     break;
                 case BT_HIDP_SW2_CMD_SET_LED:
+                    /* Seen on hardware: an ack tagged SET_LED arriving in the middle of the
+                     * pairing steps. Only the one we asked for moves the bring-up along. */
+                    if (device->hid_state != SW2_INIT_STATE_SET_LED) {
+                        printf("# %s: dev %ld SET_LED ack in state %ld, ignored\n", __FUNCTION__, device->ids.id, device->hid_state);
+                        break;
+                    }
                     printf("# BT_HIDP_SW2_CMD_SET_LED\n");
                     /* Controller slot is confirmed. Stop scanning so the next
                      * controller can only pair via an explicit button press,
@@ -504,6 +510,10 @@ void bt_hid_sw2_hdlr(struct bt_dev *device, uint16_t att_handle, uint8_t *data, 
                     bt_hid_sw2_exec_next_state(device);
                     break;
                 case BT_HIDP_SW2_CMD_PAIRING:
+                    if (device->hid_state != SW2_INIT_STATE_SET_BDADDR) {
+                        printf("# %s: dev %ld pairing ack in state %ld, ignored\n", __FUNCTION__, device->ids.id, device->hid_state);
+                        break;
+                    }
                     switch(ack->subcmd) {
                         case BT_HIDP_SW2_SUBCMD_PAIRING_STEP1:
                         {
