@@ -84,7 +84,8 @@ void IRAM_ATTR bt_mon_tx(uint16_t opcode, uint8_t *data, uint16_t len) {
     uart_write_bytes(uart_port, data, len);
 #else
     static uint32_t offset = 0;
-    if (config.global_cfg.banksel == CONFIG_BANKSEL_DBG && (offset + len) <= MC_BUFFER_SIZE) {
+    if (config.global_cfg.banksel == CONFIG_BANKSEL_DBG
+            && (offset + sizeof(struct bt_mon_hdr) + len) <= MC_BUFFER_SIZE) {
         uint32_t hdr_len = sizeof(struct bt_mon_hdr);
         uint8_t *hdr_data = (uint8_t *)&mon_hdr;
         mon_hdr.data_len = len + 4 + 5;
@@ -96,7 +97,7 @@ void IRAM_ATTR bt_mon_tx(uint16_t opcode, uint8_t *data, uint16_t len) {
         while (hdr_len) {
             uint32_t max_len = MC_BUFFER_BLOCK_SIZE - (offset % MC_BUFFER_BLOCK_SIZE);
             uint32_t write_len = (hdr_len > max_len) ? max_len : hdr_len;
-            mc_write(offset, hdr_data, hdr_len);
+            mc_write(offset, hdr_data, write_len);
             offset += write_len;
             hdr_data += write_len;
             hdr_len -= write_len;
@@ -105,7 +106,7 @@ void IRAM_ATTR bt_mon_tx(uint16_t opcode, uint8_t *data, uint16_t len) {
         while (len) {
             uint32_t max_len = MC_BUFFER_BLOCK_SIZE - (offset % MC_BUFFER_BLOCK_SIZE);
             uint32_t write_len = (len > max_len) ? max_len : len;
-            mc_write(offset, data, len);
+            mc_write(offset, data, write_len);
             offset += write_len;
             data += write_len;
             len -= write_len;

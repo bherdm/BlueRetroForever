@@ -67,8 +67,13 @@ static const struct ctrl_meta sw2_gc_axes_meta[ADAPTER_MAX_AXES] =
     {.neutral = 0x800, .abs_max = 1225, .abs_min = 1225},
     {.neutral = 0x800, .abs_max = 1120, .abs_min = 1120},
     {.neutral = 0x800, .abs_max = 1120, .abs_min = 1120},
-    {.neutral = 30, .abs_max = 195, .abs_min = 0x00},
-    {.neutral = 30, .abs_max = 195, .abs_min = 0x00},
+    /* NSO GC controller analog triggers idle a few counts above the assumed
+     * neutral of 30, leaking ~3-7 / 200 into the wired output. A small static
+     * deadzone here suppresses the noise without affecting partial-press
+     * feel (full range is ~195 counts, so 9 is ~4.5% -- just over the
+     * observed noise floor). */
+    {.neutral = 30, .abs_max = 195, .abs_min = 0x00, .deadzone = 9},
+    {.neutral = 30, .abs_max = 195, .abs_min = 0x00, .deadzone = 9},
 };
 
 struct sw2_map {
@@ -164,9 +169,11 @@ static int32_t sw2_pad_init(struct bt_data *bt_data) {
             meta[TRIG_L].neutral = sw2_gc_axes_meta[TRIG_L].neutral;
             meta[TRIG_L].abs_max = sw2_gc_axes_meta[TRIG_L].abs_max;
             meta[TRIG_L].abs_min = sw2_gc_axes_meta[TRIG_L].abs_min;
+            meta[TRIG_L].deadzone = sw2_gc_axes_meta[TRIG_L].deadzone;
             meta[TRIG_R].neutral = sw2_gc_axes_meta[TRIG_R].neutral;
             meta[TRIG_R].abs_max = sw2_gc_axes_meta[TRIG_R].abs_max;
             meta[TRIG_R].abs_min = sw2_gc_axes_meta[TRIG_R].abs_min;
+            meta[TRIG_R].deadzone = sw2_gc_axes_meta[TRIG_R].deadzone;
             break;
         }
         case SW2_PRO2_PID:
@@ -188,10 +195,22 @@ static int32_t sw2_pad_init(struct bt_data *bt_data) {
     }
 
     for (uint32_t i = 0; i < SW2_AXES_MAX; i++) {
-        if (calib && calib->sticks[i / 2].axes[i % 2].neutral) {
-            meta[axes_idx[i]].neutral = calib->sticks[i / 2].axes[i % 2].neutral;
-            meta[axes_idx[i]].abs_max = calib->sticks[i / 2].axes[i % 2].rel_max * MAX_PULL_BACK;
-            meta[axes_idx[i]].abs_min = calib->sticks[i / 2].axes[i % 2].rel_min * MAX_PULL_BACK;
+        /* Last-line sanity check: a SW2 stick's raw centre is 12-bit and
+         * should sit roughly mid-range. Anything outside [0x400, 0xC00] is
+         * almost certainly garbage parsed from a failed/aborted SPI read
+         * (the symptom is a small persistent bias on one stick). Fall back
+         * to defaults rather than honour it. */
+        uint16_t cal_neutral = calib ? calib->sticks[i / 2].axes[i % 2].neutral : 0;
+        uint16_t cal_max = calib ? calib->sticks[i / 2].axes[i % 2].rel_max : 0;
+        uint16_t cal_min = calib ? calib->sticks[i / 2].axes[i % 2].rel_min : 0;
+        bool cal_ok = cal_neutral >= 0x400 && cal_neutral <= 0xC00
+                && cal_max > 0 && cal_max < 0xC00
+                && cal_min > 0 && cal_min < 0xC00;
+
+        if (cal_ok) {
+            meta[axes_idx[i]].neutral = cal_neutral;
+            meta[axes_idx[i]].abs_max = cal_max * MAX_PULL_BACK;
+            meta[axes_idx[i]].abs_min = cal_min * MAX_PULL_BACK;
             meta[axes_idx[i]].deadzone = calib->sticks[i / 2].deadzone;
             printf("# %s: controller calib loaded\n", __FUNCTION__);
         }

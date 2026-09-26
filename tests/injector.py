@@ -72,6 +72,11 @@ class BlueRetroInjector:
         self.__write(0x0C, self.handle)
         return self.__read()
 
+    def send_att_notify(self, att_handle, data):
+        ''' An ATT notification from a BLE controller: the handle, then the value as hex. '''
+        self.__write(0x0D, self.handle, struct.pack("<H", att_handle) + bytes.fromhex(data))
+        return self.__read()
+
 
 def main():
     name = 'BlueRetro Test'
