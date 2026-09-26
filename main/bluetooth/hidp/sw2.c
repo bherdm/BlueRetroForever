@@ -363,19 +363,23 @@ void bt_hid_sw2_hdlr(struct bt_dev *device, uint16_t att_handle, uint8_t *data, 
              * meaningful payload — parsing it advances the state machine
              * with garbage data (notably for SPI reads, this is the root of
              * the "phantom left-stick held down" symptom seen on the NSO
-             * GameCube controller). */
-            if (ack->type != BT_HIDP_SW2_REQ_TYPE_RSP) {
+             * GameCube controller). A failed SPI read is retried below instead. */
+            if (ack->type != BT_HIDP_SW2_REQ_TYPE_RSP && ack->cmd != BT_HIDP_SW2_CMD_READ_SPI) {
                 printf("# %s: dev %ld skip non-RSP ack type=0x%02X cmd=0x%02X subcmd=0x%02X state=%ld\n",
                     __FUNCTION__, device->ids.id, ack->type, ack->cmd, ack->subcmd, device->hid_state);
                 break;
             }
             switch (ack->cmd) {
                 case BT_HIDP_SW2_CMD_READ_SPI:
-                    /* Only consume a SPI read that answers the request this state made.
-                     * Re-issue on mismatch rather than advancing, so a stray ack cannot
-                     * shift the state machine and misfile the payload.
+                    /* Only consume a successful SPI read that answers the request this state
+                     * made. Re-issue on an error or a mismatch rather than advancing, so a
+                     * failed or stray ack cannot shift the state machine and misfile the payload.
                      */
-                    if (!bt_hid_sw2_spi_ack_is_expected(device, ack, len)) {
+                    if (ack->type != BT_HIDP_SW2_REQ_TYPE_RSP) {
+                        printf("# %s: dev %ld SPI read failed (ack type=0x%02X) state=%ld, retrying\n",
+                            __FUNCTION__, device->ids.id, ack->type, device->hid_state);
+                    }
+                    if (ack->type != BT_HIDP_SW2_REQ_TYPE_RSP || !bt_hid_sw2_spi_ack_is_expected(device, ack, len)) {
                         if (++device->hid_retry_cnt > SW2_INIT_STATE_RETRY_MAX) {
                             printf("# %s: SPI read retry limit, disconnecting dev: %ld\n",
                                 __FUNCTION__, device->ids.id);
