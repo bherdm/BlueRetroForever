@@ -223,6 +223,12 @@ int32_t start_app_cpu(wired_init_t user)
  */
 void init_app_cpu_baremetal()
 {
+    // esp_restart() resets and then STALLS the app core (esp_restart_noos, for every ESP32 build),
+    // and a CPU reset leaves the RTC's stall bits as they are. Left stalled, the core never runs
+    // its init, the wait below spins, and only the RTC watchdog's full reset freed it - nine seconds
+    // after every software restart, and every OTA update.
+    esp_cpu_unstall(1);
+
     // just in case...
     // disable the clock gate of the app core
     DPORT_REG_CLR_BIT(DPORT_APPCPU_CTRL_B_REG, DPORT_APPCPU_CLKGATE_EN);
