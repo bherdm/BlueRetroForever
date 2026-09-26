@@ -919,11 +919,12 @@ static void bt_hci_cmd_le_create_conn(void *bdaddr_le) {
     le_create_conn->conn_interval_min = 6;
     le_create_conn->conn_interval_max = 12;
     le_create_conn->conn_latency = 0;
-    le_create_conn->supervision_timeout = 2000; /* 20s; 300 (3s) was too short to survive a second SW2 controller's full init sequence running concurrently */
+    le_create_conn->supervision_timeout = 300;
     le_create_conn->min_ce_len = 0;
     le_create_conn->max_ce_len = 0;
 
     bt_hci_cmd(BT_HCI_OP_LE_CREATE_CONN, sizeof(*le_create_conn));
+    bt_hci_le_conn_timer_start();
 }
 
 static void bt_hci_cmd_le_read_wl_size(void *cp) {
@@ -1103,23 +1104,6 @@ static void bt_hci_le_meta_evt_hdlr(struct bt_hci_pkt *bt_hci_evt_pkt) {
                     else {
                         printf("# dev NULL!\n");
                     }
-                }
-            }
-            /* SW2 controllers connect to us as BLE peripherals; advertising
-             * auto-stops on each accepted connection. The ESP32 cannot advertise,
-             * scan and service connections at the same time, so once we have two
-             * BLE controllers we STOP advertising and scanning to free the radio
-             * for servicing both links (otherwise only the latest one is serviced).
-             * Below two, keep advertising so the next controller can connect. */
-            if (!le_conn_complete->status) {
-                struct bt_dev *free_dev = NULL;
-                if (bt_host_get_flag_dev_cnt(BT_DEV_IS_BLE) < 2
-                    && bt_host_get_new_dev(&free_dev) >= 0) {
-                    bt_hci_cmd_le_set_adv_enable(NULL);
-                }
-                else {
-                    bt_hci_cmd_le_set_scan_enable(0);
-                    bt_hci_cmd_le_set_adv_disable(NULL);
                 }
             }
             break;
