@@ -360,6 +360,13 @@ static void bt_host_acl_hdlr(struct bt_hci_pkt *bt_hci_acl_pkt, uint32_t len) {
     uint32_t frag_idx = (dev_idx < 0) ? BT_MAX_DEV : (uint32_t)dev_idx;
 
     if (bt_acl_flags(pkt->acl_hdr.handle) == BT_ACL_CONT) {
+        /* A frame that outgrows its buffer is dropped whole rather than written past it. */
+        if ((frag_offset[frag_idx] + pkt->acl_hdr.len) > sizeof(frag_buf[0])) {
+            printf("# %s frag overflow on idx %ld, dropping\n", __FUNCTION__, frag_idx);
+            frag_offset[frag_idx] = 0;
+            frag_size[frag_idx] = 0;
+            return;
+        }
         memcpy(frag_buf[frag_idx] + frag_offset[frag_idx], (void *)pkt + BT_HCI_H4_HDR_SIZE + BT_HCI_ACL_HDR_SIZE,
             pkt->acl_hdr.len);
         frag_offset[frag_idx] += pkt->acl_hdr.len;
