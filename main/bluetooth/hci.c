@@ -1516,7 +1516,7 @@ void bt_hci_evt_hdlr(struct bt_hci_pkt *bt_hci_evt_pkt) {
         case BT_HCI_EVT_DISCONN_COMPLETE:
         {
             struct bt_hci_evt_disconn_complete *disconn_complete = (struct bt_hci_evt_disconn_complete *)bt_hci_evt_pkt->evt_data;
-            printf("# BT_HCI_EVT_DISCONN_COMPLETE\n");
+            printf("# BT_HCI_EVT_DISCONN_COMPLETE handle: 0x%04X reason: 0x%02X\n", disconn_complete->handle, disconn_complete->reason);
             bt_host_get_dev_from_handle(disconn_complete->handle, &device);
             if (device) {
                 printf("# DISCONN from dev: %ld\n", device->ids.id);
