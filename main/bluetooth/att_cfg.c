@@ -175,9 +175,16 @@ static void bt_att_cmd_blueretro_char_read_type_rsp(uint16_t handle, uint16_t st
             break;
         case BR_OUT_CFG_CTRL_CHRC_HDL:
         case BR_IN_CFG_CTRL_CHRC_HDL:
-        case BR_OTA_FW_DATA_CHRC_HDL:
         case BR_MC_CTRL_CHRC_HDL:
             *data++ = BT_GATT_CHRC_WRITE;
+            break;
+        /* The two bulk transfers also take writes without response; a central that looks at the
+         * properties can stream them. */
+        case BR_OTA_FW_DATA_CHRC_HDL:
+            *data++ = BT_GATT_CHRC_WRITE | BT_GATT_CHRC_WRITE_WITHOUT_RESP;
+            break;
+        case BR_MC_DATA_CHRC_HDL:
+            *data++ = BT_GATT_CHRC_READ | BT_GATT_CHRC_WRITE | BT_GATT_CHRC_WRITE_WITHOUT_RESP;
             break;
         default:
             *data++ = BT_GATT_CHRC_READ | BT_GATT_CHRC_WRITE;
@@ -761,6 +768,31 @@ void bt_att_cfg_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, u
                     break;
                 default:
                     bt_att_cmd_error_rsp(device->acl_handle, BT_ATT_OP_WRITE_REQ, wr_req->handle, BT_ATT_ERR_INVALID_HANDLE);
+                    break;
+            }
+            break;
+        }
+        case BT_ATT_OP_WRITE_CMD:
+        {
+            /* A write without response, for the two bulk transfers: a firmware image or a memory
+             * card can then stream instead of waiting a connection interval for each chunk's
+             * answer. Nothing is printed per chunk, since the console would then be the limit.
+             * A command gets no answer, not even an error, so any other handle is just ignored. */
+            struct bt_att_write_cmd *wr_cmd = (struct bt_att_write_cmd *)bt_hci_acl_pkt->att_data;
+            uint32_t att_len = len - (BT_HCI_H4_HDR_SIZE + BT_HCI_ACL_HDR_SIZE + sizeof(struct bt_l2cap_hdr) + sizeof(struct bt_att_hdr));
+            uint32_t data_len = att_len - sizeof(wr_cmd->handle);
+
+            switch (wr_cmd->handle) {
+                case BR_OTA_FW_DATA_CHRC_HDL:
+                    if (ota_hdl) {
+                        esp_ota_write(ota_hdl, wr_cmd->value, data_len);
+                    }
+                    break;
+                case BR_MC_DATA_CHRC_HDL:
+                    mc_write(mc_offset, wr_cmd->value, data_len);
+                    mc_offset += data_len;
+                    break;
+                default:
                     break;
             }
             break;
