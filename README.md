@@ -9,47 +9,10 @@ Thank you,
 
 bherdm
 
-## What this fork has fixed, and who we learned from
+## BlueRetroForever Changes
 
-Fixes on top of upstream's final commit, each verified on hardware or in the QEMU test suite:
-
-* **Firmware updates stream.** The config server now takes the firmware image (and memory-card
-  data) as writes without response and says so in its GATT declaration, so an updater can stream
-  instead of waiting a connection interval for each chunk: a 610 KB image in about 36 s from a Linux
-  central. An image the adapter rejects at the end is answered with an ATT error rather than a plain
-  write response.
-* **Restarts are quick and clean.** Before a restart or a deep sleep the adapter disconnects every
-  peer, including the phone or browser on the config interface, so the link goes in a third of a
-  second instead of timing out ten seconds later. And a software restart no longer hangs for nine
-  seconds: `esp_restart` leaves the second core stalled, which only the RTC watchdog used to free.
-* **Version and name reads** return the whole descriptor field instead of a fixed 23 bytes.
-* **The QEMU tests** no longer depend on the build's memory layout: the memory card's 128 KB is left
-  in the heap under QEMU, where the card is never brought up.
-
-### Switch 2 controllers
-
-Upstream added Switch 2 support in v25.10-beta and was archived soon after, with the NSO GameCube
-controller's "phantom stick" and reconnection problems unfixed
-([darthcloud/BlueRetro#1249](https://github.com/darthcloud/BlueRetro/issues/1249)). Three community
-forks worked on it, and this fork carries their fixes with their authorship:
-
-* [Last-Colossi/BlueRetro](https://github.com/Last-Colossi/BlueRetro) — reports are held until the
-  controller's calibration has loaded, an error ack is never parsed as data, an implausible stick
-  centre falls back to the defaults, a user calibration counts only under its magic word, and the
-  NSO GameCube triggers' idle noise sits inside a small deadzone.
-* [bjerreman/BlueRetro-Switch2Fix](https://github.com/bjerreman/BlueRetro-Switch2Fix) — up to four
-  Switch 2 controllers at once: one ACL reassembly buffer per device, inbound BLE reconnection into
-  a proper device slot, LTK-request handling, and re-advertising when a slot frees up.
-* [RyanCopley/BlueRetro](https://github.com/RyanCopley/BlueRetro) — a SPI-flash read's answer must
-  echo the address and length just requested, so a stray or duplicated answer can't shift the
-  bring-up and store the wrong bytes as a key; a link that drops before its bring-up completes has
-  its stored key purged; and a heap overflow in the debug trace writer is fixed. His Melee-safe
-  combo defaults for GameCube builds are not taken: the shipped defaults stay upstream's, and the
-  remap belongs in the configurator.
-
-On top of those, a failed SPI read is retried the same way a stray answer is, and the QEMU test
-suite gained a Switch 2 NSO GameCube controller test that walks the whole bring-up.
-
+* Switch 2 controller fixes from [Last-Colossi](https://github.com/Last-Colossi/BlueRetro), [bjerreman](https://github.com/bjerreman/BlueRetro-Switch2Fix) & [Ryan Copley](https://github.com/RyanCopley/BlueRetro)'s forks: NSO GameCube phantom stick, multiple controllers, reconnection ([#1249](https://github.com/darthcloud/BlueRetro/issues/1249)).
+* N64 keyboard & mouse support (64DD & libdragon).
 
 
 # BlueRetro
