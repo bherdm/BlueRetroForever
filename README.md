@@ -15,6 +15,12 @@ bherdm
 * N64 keyboard & mouse support (64DD & libdragon).
 
 
+## AI Disclaimer
+
+LLM coding and testing make this continuation project possible.
+
+
+
 # BlueRetro
 
 <p align="center"><img src="/static/PNGs/BRE_Logo_Color_Outline.png" width="600"/></p>
