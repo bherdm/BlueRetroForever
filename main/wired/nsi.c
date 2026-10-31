@@ -283,13 +283,16 @@ static void n64_kb_cmd_hdlr(uint8_t channel, uint8_t port, uint16_t item) {
             n64_kb_leds(channel, leds);
             break;
         case N64_KB_EXT_READ_CMD:
-            nsi_items_to_bytes(item, &leds, 1);
-            memcpy(buf, wired_adapter.data[channel].output + N64_KB_EXT_READ_OFFSET, N64_KB_EXT_READ_LEN);
-            nsi_bytes_to_items_crc(channel * RMT_MEM_ITEM_NUM, buf, N64_KB_EXT_READ_LEN, &crc, STOP_BIT_2US);
-            RMT.conf_ch[channel].conf1.tx_start = 1;
-            ++wired_adapter.data[channel].frame_cnt;
-            n64_kb_leds(channel, leds);
-            break;
+            if (!wired_adapter.data[channel].output[N64_KB_CLASSIC_OFFSET]) {
+                nsi_items_to_bytes(item, &leds, 1);
+                memcpy(buf, wired_adapter.data[channel].output + N64_KB_EXT_READ_OFFSET, N64_KB_EXT_READ_LEN);
+                nsi_bytes_to_items_crc(channel * RMT_MEM_ITEM_NUM, buf, N64_KB_EXT_READ_LEN, &crc, STOP_BIT_2US);
+                RMT.conf_ch[channel].conf1.tx_start = 1;
+                ++wired_adapter.data[channel].frame_cnt;
+                n64_kb_leds(channel, leds);
+                break;
+            }
+            /* Fallthrough: classic mode is an RND-001, which has no extended read */
         default:
             /* 0x00 & 0xFF cmds goes here, corrupt cmd too! This help avoid ctrl detection error */
             const uint16_t id_be = sys_cpu_to_be16(N64_KB);

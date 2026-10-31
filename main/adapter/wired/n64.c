@@ -16,6 +16,7 @@
 #include "tests/cmds.h"
 #include "bluetooth/mon.h"
 #include "n64.h"
+#include "n64_kb_layouts.h"
 
 #define N64_AXES_MAX 2
 enum {
@@ -109,6 +110,22 @@ struct n64_kb_map {
 _Static_assert(offsetof(struct n64_kb_map, ext_marker) == N64_KB_EXT_READ_OFFSET, "0x2A reply offset");
 _Static_assert(sizeof(struct n64_kb_map) - N64_KB_EXT_READ_OFFSET == N64_KB_EXT_READ_LEN, "0x2A reply length");
 _Static_assert(sizeof(struct n64_kb_map) <= N64_KB_LEDS_OFFSET, "the LED byte follows the replies");
+_Static_assert(N64_KB_CLASSIC_OFFSET < sizeof(((struct wired_data *)0)->output), "the classic flag fits");
+
+/* The modifier byte's bits, USB order */
+#define N64_KB_LCTRL BIT(0)
+#define N64_KB_LSHIFT BIT(1)
+#define N64_KB_LALT BIT(2)
+#define N64_KB_LGUI BIT(3)
+#define N64_KB_RCTRL BIT(4)
+#define N64_KB_RSHIFT BIT(5)
+#define N64_KB_RALT BIT(6)
+#define N64_KB_RGUI BIT(7)
+/* The RND-001 keys a keyboard without them gets stand-ins for, and Caps Lock, where JIS has 英数 */
+#define N64_KB_CODE_KANA 0x1006
+#define N64_KB_CODE_HENKAN 0x0E02
+#define N64_KB_CODE_MUHENKAN 0x1002
+#define N64_KB_CODE_CAPS 0x0F05
 
 static struct mouse_mapper_cfg mouse_cfg[WIRED_MAX_DEV];
 static struct mouse_mapper_state mouse_state[WIRED_MAX_DEV];
@@ -306,6 +323,7 @@ void IRAM_ATTR n64_init_buffer(int32_t dev_mode, struct wired_data *wired_data) 
             /* libdragon's probe on connect finds the extended read before any key is pressed */
             map->ext_marker = N64_KB_EXT_MARKER;
             map->ext_version = N64_KB_EXT_VERSION;
+            wired_data->output[N64_KB_CLASSIC_OFFSET] = config.kb_cfg[wired_data->index].mode == KB_MODE_CLASSIC;
             /* A keyboard just connected takes the console's LEDs at its next read */
             wired_data->output[N64_KB_LEDS_OFFSET] = 0xFF;
             break;
@@ -551,27 +569,148 @@ static void n64_kb_from_generic(struct wired_ctrl *ctrl_data, struct wired_data 
     memcpy(wired_data->output, (void *)&map_tmp, sizeof(map_tmp));
 }
 
+/* The keys that type characters: letters, digits, space and punctuation, with the ISO and JIS ones.
+ * Enter, Escape, Backspace and Tab type none */
+static uint32_t n64_kb_is_printing(uint8_t usage) {
+    return (usage >= 0x04 && usage <= 0x38 && (usage < 0x28 || usage > 0x2B))
+        || usage == 0x64 || usage == 0x87 || usage == 0x89;
+}
+
+/* The characters each printing key types on a layout and arrangement, or NULL for Japanese, whose
+ * keys are the RND-001's own */
+static const uint8_t (*n64_kb_layout_chars(uint32_t layout, uint32_t arrangement))[4] {
+    uint32_t mac = (arrangement == KB_ARRANGEMENT_MAC);
+
+    switch (layout) {
+        case KB_LAYOUT_UK:
+            return mac ? n64_kb_chars_gb_mac : n64_kb_chars_gb_pc;
+        case KB_LAYOUT_DE:
+            return mac ? n64_kb_chars_de_mac : n64_kb_chars_de_pc;
+        case KB_LAYOUT_FR:
+            return mac ? n64_kb_chars_fr_mac : n64_kb_chars_fr_pc;
+        case KB_LAYOUT_JP:
+            return NULL;
+        default:
+            return mac ? n64_kb_chars_us_mac : n64_kb_chars_us_pc;
+    }
+}
+
+/* Classic mode (docs/classic-keyboard-design.md): the keyboard plays the RND-001 for retail
+ * software. A printing key is read as the character it types on the port's layout and sent as the
+ * RND-001 key that types it, with Shift as that key needs; a character the RND-001 can't type is
+ * dropped. The RND-001's かな, 変換 and 無変換 come from stand-ins where a keyboard lacks them, and
+ * media and system keys go, as the RND-001 has none. The list is modifiers, stand-ins, then keys */
+static uint32_t n64_kb_classic_list(const struct kb_state *kb, const struct kb_cfg *cfg, uint16_t *list) {
+    const uint8_t (*chars)[4] = n64_kb_layout_chars(cfg->layout, cfg->arrangement);
+    uint32_t mac = (cfg->arrangement == KB_ARRANGEMENT_MAC);
+    uint32_t mods = kb->mods;
+    uint16_t stand_ins[4], keys[ARRAY_SIZE(kb->keys)];
+    uint32_t stand_in_cnt = 0, key_cnt = 0, cnt = 0;
+    int32_t shift = -1; /* the Shift the latest translated key needs, or -1 for the user's own */
+    /* AltGr on a PC, left Option on a Mac (right Option stands in for かな) */
+    uint32_t level3 = mac ? N64_KB_LALT : N64_KB_RALT;
+    uint32_t level;
+
+    if (mac) {
+        if (chars && (mods & N64_KB_RALT)) {
+            stand_ins[stand_in_cnt++] = N64_KB_CODE_KANA;
+            mods &= ~N64_KB_RALT;
+        }
+        if (mods & N64_KB_RGUI) {
+            stand_ins[stand_in_cnt++] = N64_KB_CODE_HENKAN;
+            mods &= ~N64_KB_RGUI;
+        }
+        if (mods & N64_KB_LGUI) {
+            stand_ins[stand_in_cnt++] = N64_KB_CODE_MUHENKAN;
+            mods &= ~N64_KB_LGUI;
+        }
+    }
+    else if (chars) {
+        if (mods & N64_KB_RCTRL) {
+            stand_ins[stand_in_cnt++] = N64_KB_CODE_KANA;
+            mods &= ~N64_KB_RCTRL;
+        }
+        if (mods & N64_KB_RGUI) {
+            stand_ins[stand_in_cnt++] = N64_KB_CODE_HENKAN;
+            mods &= ~N64_KB_RGUI;
+        }
+    }
+
+    level = ((mods & (N64_KB_LSHIFT | N64_KB_RSHIFT)) ? 1 : 0) | ((chars && (mods & level3)) ? 2 : 0);
+    for (uint32_t i = 0; i < kb->key_cnt; i++) {
+        uint8_t usage = kb->keys[i];
+
+        if (chars && !mac && usage == 0x65) {
+            /* Menu */
+            stand_ins[stand_in_cnt++] = N64_KB_CODE_MUHENKAN;
+        }
+        else if (!chars && mac && (usage == 0x90 || usage == 0x91)) {
+            /* Apple's Japanese keyboards: かな is かな, and 英数 is JIS's Caps Lock */
+            stand_ins[stand_in_cnt++] = (usage == 0x90) ? N64_KB_CODE_KANA : N64_KB_CODE_CAPS;
+        }
+        else if (chars && n64_kb_is_printing(usage)) {
+            uint8_t c = chars[usage][level];
+            uint16_t jis = c ? n64_kb_jis_keys[c] : 0;
+
+            if (jis) {
+                keys[key_cnt++] = n64_kb_code(jis & 0xFF);
+                shift = !!(jis & N64_KB_JIS_SHIFT);
+            }
+        }
+        else {
+            keys[key_cnt++] = n64_kb_code(usage);
+        }
+    }
+
+    /* A translated key brings its own Shift; level 3 is spent on characters */
+    if (shift >= 0) {
+        mods &= ~(N64_KB_LSHIFT | N64_KB_RSHIFT);
+        mods |= shift ? N64_KB_LSHIFT : 0;
+    }
+    if (chars) {
+        mods &= ~level3;
+    }
+    for (uint32_t i = 0; i < 8; i++) {
+        if (mods & BIT(i)) {
+            list[cnt++] = n64_kb_code(0xE0 + i);
+        }
+    }
+    for (uint32_t i = 0; i < stand_in_cnt; i++) {
+        list[cnt++] = stand_ins[i];
+    }
+    for (uint32_t i = 0; i < key_cnt; i++) {
+        list[cnt++] = keys[i];
+    }
+    return cnt;
+}
+
 /* Both reads are cut from one list: the held modifiers, the keys in press order, then the media and
  * system keys. The extended read sends its first ten, Home among them; the RANDnet read takes Home
- * out as its status bit and sends the first three */
+ * out as its status bit and sends the first three. In classic mode the list is the RND-001's */
 static void n64_kb_from_state(const struct kb_state *kb, struct wired_data *wired_data) {
+    const struct kb_cfg *cfg = &config.kb_cfg[wired_data->index];
+    uint32_t classic = (cfg->mode == KB_MODE_CLASSIC);
     struct n64_kb_map map_tmp = {
-        .ext_marker = N64_KB_EXT_MARKER,
-        .ext_version = N64_KB_EXT_VERSION,
+        .ext_marker = classic ? 0 : N64_KB_EXT_MARKER,
+        .ext_version = classic ? 0 : N64_KB_EXT_VERSION,
     };
     uint16_t list[8 + ARRAY_SIZE(kb->keys) + ARRAY_SIZE(kb->consumer) + 3];
     uint32_t list_cnt = 0;
     uint32_t read_cnt = 0;
 
-    for (uint32_t i = 0; i < 8; i++) {
+    wired_data->output[N64_KB_CLASSIC_OFFSET] = classic;
+    if (classic) {
+        list_cnt = n64_kb_classic_list(kb, cfg, list);
+    }
+    for (uint32_t i = 0; !classic && i < 8; i++) {
         if (kb->mods & BIT(i)) {
             list[list_cnt++] = n64_kb_code(0xE0 + i);
         }
     }
-    for (uint32_t i = 0; i < kb->key_cnt; i++) {
+    for (uint32_t i = 0; !classic && i < kb->key_cnt; i++) {
         list[list_cnt++] = n64_kb_code(kb->keys[i]);
     }
-    for (uint32_t i = 0; i < kb->consumer_cnt; i++) {
+    for (uint32_t i = 0; !classic && i < kb->consumer_cnt; i++) {
         /* libdragon's Consumer pages, 0x21 to 0x23, carry usages 0x0001 to 0x02FF: 0x0100 and
          * 0x0200 aren't keys and would make a code with a zero byte, and from 0x0300 the codes
          * would be the Generic Desktop page's */
@@ -579,7 +718,7 @@ static void n64_kb_from_state(const struct kb_state *kb, struct wired_data *wire
             list[list_cnt++] = ((0x21 + (kb->consumer[i] >> 8)) << 8) | (kb->consumer[i] & 0xFF);
         }
     }
-    for (uint32_t i = 0; i < 3; i++) {
+    for (uint32_t i = 0; !classic && i < 3; i++) {
         if (kb->system & BIT(i)) {
             list[list_cnt++] = N64_KB_CODE_POWER + i;
         }
@@ -612,7 +751,7 @@ static void n64_kb_from_state(const struct kb_state *kb, struct wired_data *wire
     for (uint32_t i = 0; i < ARRAY_SIZE(map_tmp.ext_key_codes); i++) {
         TESTS_CMDS_LOG("%s%d", i ? ", " : "", sys_be16_to_cpu(map_tmp.ext_key_codes[i]));
     }
-    TESTS_CMDS_LOG("], \"ext_status\": %d},\n", map_tmp.ext_status);
+    TESTS_CMDS_LOG("], \"ext_status\": %d, \"ext_marker\": %d},\n", map_tmp.ext_status, map_tmp.ext_marker);
 
     memcpy(wired_data->output, (void *)&map_tmp, sizeof(map_tmp));
 }

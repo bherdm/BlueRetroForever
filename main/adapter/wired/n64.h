@@ -16,6 +16,9 @@
 /* After the replies, the LED byte the console last sent (0xFF until it sends one), so a change goes
  * to the Bluetooth keyboard once */
 #define N64_KB_LEDS_OFFSET 30
+/* Then 1 when the port's keyboard is in classic mode: an RND-001, which has no extended read, so the
+ * driver answers 0x2A as it answers what it doesn't know */
+#define N64_KB_CLASSIC_OFFSET 31
 
 void n64_meta_init(struct wired_ctrl *ctrl_data);
 void n64_apply_meta(int32_t dev_mode, struct wired_ctrl *ctrl_data);

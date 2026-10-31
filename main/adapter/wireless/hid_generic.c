@@ -12,6 +12,7 @@
 #include "tests/cmds.h"
 #include "hid_generic.h"
 #include "adapter/mapping_quirks.h"
+#include "adapter/config.h"
 #include "adapter/hid_parser.h"
 #include "bluetooth/mon.h"
 
@@ -119,6 +120,21 @@ static void hid_kb_held_add(struct hid_kb_held *held, uint32_t usage) {
     else {
         held->rollover = 1;
     }
+}
+
+/* Apple's own ISO keyboards report the key above Tab (§) and the one beside left Shift (< >) as each
+ * other, which macOS and Linux undo. So does this, on a port whose keyboard is set to a Mac ISO
+ * layout, so both keyboard modes see the keys where they are */
+static uint32_t hid_kb_apple_iso_swap(struct bt_data *bt_data) {
+    int32_t out_idx = bt_data->base.pids->out_idx;
+    const struct kb_cfg *cfg;
+
+    if (bt_data->base.vid != 0x05AC || out_idx < 0 || out_idx >= WIRED_MAX_DEV) {
+        return 0;
+    }
+    cfg = &config.kb_cfg[out_idx];
+    return cfg->arrangement == KB_ARRANGEMENT_MAC
+        && (cfg->layout == KB_LAYOUT_UK || cfg->layout == KB_LAYOUT_DE || cfg->layout == KB_LAYOUT_FR);
 }
 
 /* Released keys leave the kb_state and new ones join at its end, so its keys stay in press order */
@@ -289,6 +305,13 @@ static void hid_kb_to_generic(struct bt_data *bt_data, struct wireless_ctrl *ctr
                 if (generic != KBM_NONE) {
                     ctrl_data->btns[generic >> 5].value |= BIT(generic & 0x1F);
                 }
+            }
+        }
+    }
+    if (hid_kb_apple_iso_swap(bt_data)) {
+        for (uint32_t i = 0; i < held.cnt; i++) {
+            if (held.keys[i] == 0x35 || held.keys[i] == 0x64) {
+                held.keys[i] ^= 0x35 ^ 0x64;
             }
         }
     }

@@ -29,7 +29,8 @@ def blueretro(blueretro_dut, request):
     blueretro_dut.disconnect()
 
     param = getattr(request, 'param', [system.GC, dev_mode.PAD, bt_conn_type.BT_BR_EDR])
-    blueretro_dut.send_out_cfg(0, f"{param[1]:02x}00")
+    # The output's 2 bytes, then its keyboard's 3: full layout, US, Mac
+    blueretro_dut.send_out_cfg(0, f"{param[1]:02x}00000000")
     blueretro_dut.send_system_id(param[0])
     rsp = blueretro_dut.connect(param[2])
     assert rsp['device_conn']['handle'] == 0

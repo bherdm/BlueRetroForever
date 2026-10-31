@@ -21,11 +21,12 @@
 #include "bluetooth/host.h"
 #include "bluetooth/hci.h"
 #include "system/led.h"
+#include "adapter/config.h"
 #include "serial_cmd.h"
 
 #define SERIAL_CMD_LINE_MAX 32
 #define SERIAL_CMD_PORTS 4
-#define SERIAL_CMD_LIST "inq start | inq stop | disconnect | status | led <1-5>"
+#define SERIAL_CMD_LIST "inq start | inq stop | disconnect | status | led <1-5> | kb <1-4> <full|classic> <us|uk|de|fr|jp> <mac|pc>"
 
 static char line[SERIAL_CMD_LINE_MAX];
 static uint32_t line_len;
@@ -87,6 +88,37 @@ static void cmd_led(const char *arg) {
     }
 }
 
+static int32_t word_index(const char *word, const char *const *words, uint32_t cnt) {
+    for (uint32_t i = 0; i < cnt; i++) {
+        if (!strcmp(word, words[i])) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/* A port's keyboard settings, saved as the app saves them: "kb 1 classic de pc" */
+static void cmd_kb(const char *args) {
+    static const char *const modes[] = {"full", "classic"};
+    static const char *const layouts[] = {"us", "uk", "de", "fr", "jp"};
+    static const char *const arrangements[] = {"mac", "pc"};
+    char port[4] = "", mode[10] = "", layout[4] = "", arrangement[4] = "";
+    int32_t m, l, a;
+
+    if (sscanf(args, "%3s %9s %3s %3s", port, mode, layout, arrangement) != 4
+            || port[0] < '1' || port[0] > '0' + SERIAL_CMD_PORTS || port[1]
+            || (m = word_index(mode, modes, 2)) < 0 || (l = word_index(layout, layouts, 5)) < 0
+            || (a = word_index(arrangement, arrangements, 2)) < 0) {
+        printf("# cmd %s: refused, kb <1-%d> <full|classic> <us|uk|de|fr|jp> <mac|pc>\n", line, SERIAL_CMD_PORTS);
+        return;
+    }
+    config.kb_cfg[port[0] - '1'].mode = m;
+    config.kb_cfg[port[0] - '1'].layout = l;
+    config.kb_cfg[port[0] - '1'].arrangement = a;
+    config_update(config_get_src());
+    printf("# cmd %s: ok\n", line);
+}
+
 static void cmd_disconnect(void) {
     uint32_t cnt = bt_host_get_flag_dev_cnt(BT_DEV_DEVICE_FOUND);
 
@@ -146,6 +178,9 @@ static void serial_cmd_run(void) {
     }
     else if (!strncmp(line, "led ", 4)) {
         cmd_led(line + 4);
+    }
+    else if (!strncmp(line, "kb ", 3)) {
+        cmd_kb(line + 3);
     }
     else if (!strcmp(line, "help")) {
         printf("# cmd help: %s\n", SERIAL_CMD_LIST);

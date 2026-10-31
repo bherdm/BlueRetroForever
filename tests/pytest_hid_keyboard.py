@@ -384,3 +384,136 @@ def test_hid_keyboard_n64_leds(blueretro):
 
     rsp = blueretro.send_fb(0, FB_TYPE_KB_LEDS, '06')
     assert rsp['bt_output'] == {'report_id': 1, 'data': [0x02]}
+
+
+FULL_LAYOUT, CLASSIC = 0, 1
+US, UK, DE, FR, JP = range(5)
+MAC, PC = 0, 1
+KANA, HENKAN, MUHENKAN, CAPS = 0x1006, 0x0E02, 0x1002, 0x0F05
+AT, LPAREN, Z_KEY, CARET, LESS, HASH = 0x0504, 0x0806, 0x0D08, 0x0C06, 0x0902, 0x0605
+
+
+def keyboard_cfg(blueretro, mode, layout, arrangement):
+    ''' Port 1's keyboard settings: the output's 2 bytes, then the keyboard's 3. '''
+    blueretro.send_out_cfg(0, f"{dev_mode.KB:02x}00{mode:02x}{layout:02x}{arrangement:02x}")
+
+
+def assert_classic(rsp, keys, bitfield=0):
+    ''' The RND-001's read, and no extended read: classic mode is an RND-001. '''
+    assert rsp['wired_output']['keys'] == keys
+    assert rsp['wired_output']['bitfield'] == bitfield
+    assert rsp['wired_output']['ext_marker'] == 0
+
+
+@pytest.mark.parametrize('blueretro', N64_KB, indirect=True)
+def test_hid_keyboard_n64_classic_translates_us(blueretro):
+    ''' Classic, US PC: a key is sent as the RND-001 key that types the same character, with the
+    Shift that key needs. Shift+2 is @, which JIS types right of P without Shift. '''
+    blueretro.send_name(DEVICE_NAME)
+    blueretro.send_hid_desc(HID_DESC)
+    keyboard_cfg(blueretro, CLASSIC, US, PC)
+
+    assert_classic(blueretro.send_hid_report(kb_report([0x1F], mods=0x02)), [AT, 0, 0])
+    assert_classic(blueretro.send_hid_report(kb_report([0x26], mods=0x02)), [LSHIFT, LPAREN, 0])
+    assert_classic(blueretro.send_hid_report(kb_report([0x04])), [A, 0, 0])
+    assert_classic(blueretro.send_hid_report(kb_report()), [0, 0, 0])
+
+    keyboard_cfg(blueretro, FULL_LAYOUT, US, PC)
+    rsp = blueretro.send_hid_report(kb_report([0x1F], mods=0x02))
+    assert rsp['wired_output']['keys'] == [LSHIFT, 0x0505, 0]
+    assert rsp['wired_output']['ext_marker'] == 0x42
+
+
+@pytest.mark.parametrize('blueretro', N64_KB, indirect=True)
+def test_hid_keyboard_n64_classic_translates_german(blueretro):
+    ''' Classic, German PC: Z is where US has Y, AltGr+Q is @, and ö, which the RND-001 can't
+    type, is dropped. '''
+    blueretro.send_name(DEVICE_NAME)
+    blueretro.send_hid_desc(HID_DESC)
+    keyboard_cfg(blueretro, CLASSIC, DE, PC)
+
+    assert_classic(blueretro.send_hid_report(kb_report([0x1C])), [Z_KEY, 0, 0])
+    assert_classic(blueretro.send_hid_report(kb_report([0x14], mods=0x40)), [AT, 0, 0])
+    assert_classic(blueretro.send_hid_report(kb_report([0x33])), [0, 0, 0])
+
+
+@pytest.mark.parametrize('blueretro', N64_KB, indirect=True)
+def test_hid_keyboard_n64_classic_stand_ins(blueretro):
+    ''' The RND-001's かな, 変換 and 無変換: right Ctrl, right Windows and Menu on a PC; right
+    Option, right Cmd and left Cmd on a Mac. '''
+    blueretro.send_name(DEVICE_NAME)
+    blueretro.send_hid_desc(HID_DESC)
+
+    keyboard_cfg(blueretro, CLASSIC, US, PC)
+    assert_classic(blueretro.send_hid_report(kb_report(mods=0x10)), [KANA, 0, 0])
+    assert_classic(blueretro.send_hid_report(kb_report(mods=0x80)), [HENKAN, 0, 0])
+    assert_classic(blueretro.send_hid_report(kb_report([0x65])), [MUHENKAN, 0, 0])
+
+    keyboard_cfg(blueretro, CLASSIC, US, MAC)
+    assert_classic(blueretro.send_hid_report(kb_report(mods=0x40)), [KANA, 0, 0])
+    assert_classic(blueretro.send_hid_report(kb_report(mods=0x80)), [HENKAN, 0, 0])
+    assert_classic(blueretro.send_hid_report(kb_report(mods=0x08)), [MUHENKAN, 0, 0])
+
+
+@pytest.mark.parametrize('blueretro', N64_KB, indirect=True)
+def test_hid_keyboard_n64_classic_mac_option(blueretro):
+    ''' On a Mac, left Option types what AltGr does on a PC: Option+L is @ on German, and
+    Option+3 is # on UK, which JIS types with Shift. '''
+    blueretro.send_name(DEVICE_NAME)
+    blueretro.send_hid_desc(HID_DESC)
+
+    keyboard_cfg(blueretro, CLASSIC, DE, MAC)
+    assert_classic(blueretro.send_hid_report(kb_report([0x0F], mods=0x04)), [AT, 0, 0])
+    keyboard_cfg(blueretro, CLASSIC, UK, MAC)
+    assert_classic(blueretro.send_hid_report(kb_report([0x20], mods=0x04)), [LSHIFT, HASH, 0])
+
+
+@pytest.mark.parametrize('blueretro', N64_KB, indirect=True)
+def test_hid_keyboard_n64_classic_japanese(blueretro):
+    ''' A Japanese keyboard's keys are the RND-001's own, so they go as they are. On a PC one there
+    are no stand-ins; Apple's has かな and 英数, and its Cmd keys stand in for 変換 and 無変換. '''
+    blueretro.send_name(DEVICE_NAME)
+    blueretro.send_hid_desc(HID_DESC)
+
+    keyboard_cfg(blueretro, CLASSIC, JP, PC)
+    assert_classic(blueretro.send_hid_report(kb_report([0x2F])), [AT, 0, 0])
+    assert_classic(blueretro.send_hid_report(kb_report(mods=0x10)), [RCTRL, 0, 0])
+
+    keyboard_cfg(blueretro, CLASSIC, JP, MAC)
+    assert_classic(blueretro.send_hid_report(kb_report([0x90])), [KANA, 0, 0])
+    assert_classic(blueretro.send_hid_report(kb_report([0x91])), [CAPS, 0, 0])
+    assert_classic(blueretro.send_hid_report(kb_report(mods=0x80)), [HENKAN, 0, 0])
+
+
+@pytest.mark.parametrize('blueretro', N64_KB, indirect=True)
+def test_hid_keyboard_n64_classic_drops_media_keys(blueretro):
+    ''' The RND-001 has no media keys. '''
+    blueretro.send_name(DEVICE_NAME)
+    blueretro.send_hid_desc(HID_DESC)
+    keyboard_cfg(blueretro, CLASSIC, US, PC)
+
+    blueretro.send_hid_report(kb_report([0x04]))
+    assert_classic(blueretro.send_hid_report(consumer_report(8)), [A, 0, 0])
+
+
+@pytest.mark.parametrize('blueretro', N64_KB, indirect=True)
+def test_hid_keyboard_n64_apple_iso_swap(blueretro):
+    ''' Apple's own ISO keyboards report the key above Tab and the one beside left Shift as each
+    other: on a Mac ISO layout they're swapped back, in both modes. German Mac has ^ above Tab and
+    < beside Shift. '''
+    blueretro.send_name(DEVICE_NAME)
+    blueretro.send_vid_pid(0x05AC, 0x0267)
+    blueretro.send_hid_desc(HID_DESC)
+
+    keyboard_cfg(blueretro, CLASSIC, DE, MAC)
+    assert_classic(blueretro.send_hid_report(kb_report([0x64])), [CARET, 0, 0])
+    assert_classic(blueretro.send_hid_report(kb_report([0x35])), [LSHIFT, LESS, 0])
+
+    keyboard_cfg(blueretro, FULL_LAYOUT, DE, MAC)
+    rsp = blueretro.send_hid_report(kb_report([0x64]))
+    assert rsp['wired_output']['keys'] == [0x0D05, 0, 0]
+
+    # A PC arrangement leaves an Apple keyboard's keys as it reports them
+    keyboard_cfg(blueretro, FULL_LAYOUT, DE, PC)
+    rsp = blueretro.send_hid_report(kb_report([0x64]))
+    assert rsp['wired_output']['keys'] == [0x2064, 0, 0]

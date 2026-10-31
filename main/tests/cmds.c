@@ -119,8 +119,12 @@ char *tests_cmds_hdlr(struct tests_cmds_pkt *pkt) {
             memcpy(&config.global_cfg, pkt->data, pkt->data_len);
             break;
         case TESTS_CMDS_OUT_CFG:
-            /* Output config */
-            memcpy(&config.out_cfg[pkt->data[0]], &pkt->data[1], pkt->data_len - 1);
+            /* Output config: the output's bytes, then its keyboard's, as the BLE output characteristic */
+            memcpy(&config.out_cfg[pkt->data[0]], &pkt->data[1], MIN(pkt->data_len - 1, sizeof(config.out_cfg[0])));
+            if (pkt->data_len - 1 > sizeof(config.out_cfg[0])) {
+                memcpy(&config.kb_cfg[pkt->data[0]], &pkt->data[1 + sizeof(config.out_cfg[0])],
+                    MIN(pkt->data_len - 1 - sizeof(config.out_cfg[0]), sizeof(config.kb_cfg[0])));
+            }
 #ifdef CONFIG_BLUERETRO_N64_AUTO_ID_SWITCHING
             /* As a config load does, so an N64 port starts in the mode a test asked for */
             if (pkt->data[0] < 4) {

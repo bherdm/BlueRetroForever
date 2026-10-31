@@ -16,6 +16,7 @@
 #include "zephyr/att.h"
 #include "zephyr/gatt.h"
 #include "adapter/config.h"
+#include "tools/util.h"
 #include "adapter/memory_card.h"
 #include "adapter/gameid.h"
 #include "system/manager.h"
@@ -31,6 +32,7 @@
 #define CFG_CMD_GET_CFG_SRC 0x05
 #define CFG_CMD_GET_FILE 0x06
 #define CFG_CMD_GET_FW_NAME 0x07
+#define CFG_CMD_GET_SYSTEM 0x08
 #define CFG_CMD_SET_DEFAULT_CFG 0x10
 #define CFG_CMD_SET_GAMEID_CFG 0x11
 #define CFG_CMD_OPEN_DIR 0x12
@@ -241,20 +243,24 @@ static void bt_att_cmd_global_cfg_rd_rsp(uint16_t handle, uint16_t offset) {
 }
 
 static void bt_att_cmd_out_cfg_rd_rsp(uint16_t handle, uint16_t offset) {
+    uint8_t out[sizeof(config.out_cfg[0]) + sizeof(config.kb_cfg[0])];
     uint32_t len = 0;
     printf("# %s\n", __FUNCTION__);
 
-    if (offset > sizeof(config.out_cfg[0])) {
+    /* The output's settings, then its keyboard's */
+    memcpy(out, &config.out_cfg[out_cfg_id], sizeof(config.out_cfg[0]));
+    memcpy(out + sizeof(config.out_cfg[0]), &config.kb_cfg[out_cfg_id], sizeof(config.kb_cfg[0]));
+    if (offset > sizeof(out)) {
         len = 0;
     }
     else {
-        len = sizeof(config.out_cfg[0]) - offset;
+        len = sizeof(out) - offset;
 
         if (len > (mtu - 1)) {
             len = mtu - 1;
         }
 
-        memcpy(bt_hci_pkt_tmp.att_data, (void *)&config.out_cfg[out_cfg_id] + offset, len);
+        memcpy(bt_hci_pkt_tmp.att_data, out + offset, len);
     }
 
     bt_att_cmd(handle, offset ? BT_ATT_OP_READ_BLOB_RSP : BT_ATT_OP_READ_RSP, len);
@@ -372,6 +378,17 @@ static void bt_att_cfg_cmd_cfg_src_rsp(uint16_t handle) {
     bt_att_cmd(handle, BT_ATT_OP_READ_RSP, 1);
 }
 
+/* The console the adapter is driving: a universal build learns it from the cable (WIRED_AUTO until
+ * the console first talks), a console's own build knows it. Two bytes, the system and this answer's
+ * version, as firmware without the command answers one (the ABI version) */
+static void bt_att_cfg_cmd_system_rsp(uint16_t handle) {
+    bt_hci_pkt_tmp.att_data[0] = (wired_adapter.system_id > WIRED_AUTO) ? wired_adapter.system_id : WIRED_AUTO;
+    bt_hci_pkt_tmp.att_data[1] = 1;
+    printf("# %s %d\n", __FUNCTION__, bt_hci_pkt_tmp.att_data[0]);
+
+    bt_att_cmd(handle, BT_ATT_OP_READ_RSP, 2);
+}
+
 static void bt_att_cfg_cmd_file_rsp(uint16_t handle) {
     uint32_t len;
 
@@ -454,6 +471,9 @@ static void bt_att_cfg_cmd_rd_hdlr(uint16_t handle) {
             break;
         case CFG_CMD_GET_FW_NAME:
             bt_att_cfg_cmd_fw_name_rsp(handle);
+            break;
+        case CFG_CMD_GET_SYSTEM:
+            bt_att_cfg_cmd_system_rsp(handle);
             break;
         default:
             printf("# Invalid read cfg cmd: %02X\n", cfg_cmd);
@@ -746,7 +766,12 @@ void bt_att_cfg_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, u
                     bt_att_cmd_wr_rsp(device->acl_handle);
                     break;
                 case BR_OUT_CFG_DATA_CHRC_HDL:
-                    memcpy((void *)&config.out_cfg[out_cfg_id], wr_req->value, sizeof(config.out_cfg[0]));
+                    /* An app from before the keyboard settings writes 2 bytes, and leaves them be */
+                    memcpy((void *)&config.out_cfg[out_cfg_id], wr_req->value, MIN(data_len, sizeof(config.out_cfg[0])));
+                    if (data_len >= sizeof(config.out_cfg[0]) + sizeof(config.kb_cfg[0])) {
+                        memcpy((void *)&config.kb_cfg[out_cfg_id], wr_req->value + sizeof(config.out_cfg[0]),
+                            sizeof(config.kb_cfg[0]));
+                    }
                     config_update(config_get_src());
                     bt_att_cmd_wr_rsp(device->acl_handle);
                     break;

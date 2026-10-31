@@ -12,8 +12,9 @@
 #define CONFIG_MAGIC_V1 0xF380D824
 #define CONFIG_MAGIC_V2 0x1782DB8A
 #define CONFIG_MAGIC_V3 0xAB89C69A
-#define CONFIG_MAGIC CONFIG_MAGIC_V3
-#define CONFIG_VERSION 3
+#define CONFIG_MAGIC_V4 0x4B7D3E15
+#define CONFIG_MAGIC CONFIG_MAGIC_V4
+#define CONFIG_VERSION 4
 #define ADAPTER_MAPPING_MAX 128
 #define CONFIG_BANKSEL_MAX 4
 #define CONFIG_BANKSEL_DBG 0xDB
@@ -41,9 +42,35 @@ struct global_cfg {
     uint8_t banksel;
 } __packed;
 
+/* How a Bluetooth keyboard on an output is sent (docs/classic-keyboard-design.md); zero is each
+ * one's default */
+enum {
+    KB_MODE_FULL_LAYOUT = 0,    /* every key as its position, on both N64 reads */
+    KB_MODE_CLASSIC,            /* the RND-001 for retail software: translated, 0x13 only */
+};
+enum {
+    KB_LAYOUT_US = 0,
+    KB_LAYOUT_UK,
+    KB_LAYOUT_DE,
+    KB_LAYOUT_FR,
+    KB_LAYOUT_JP,
+};
+enum {
+    KB_ARRANGEMENT_MAC = 0,
+    KB_ARRANGEMENT_PC,
+};
+
 struct out_cfg {
     uint8_t dev_mode;
     uint8_t acc_mode;
+} __packed;
+
+/* Each output's keyboard settings, apart from out_cfg, which the wired drivers' interrupts index:
+ * the BLE output characteristic carries them after it, 5 bytes in all */
+struct kb_cfg {
+    uint8_t mode;
+    uint8_t layout;
+    uint8_t arrangement;
 } __packed;
 
 struct in_cfg {
@@ -58,6 +85,7 @@ struct config {
     struct global_cfg global_cfg;
     struct out_cfg out_cfg[WIRED_MAX_DEV];
     struct in_cfg in_cfg[WIRED_MAX_DEV];
+    struct kb_cfg kb_cfg[WIRED_MAX_DEV];
 } __packed;
 
 struct hw_config {
