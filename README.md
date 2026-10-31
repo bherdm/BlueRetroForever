@@ -12,13 +12,20 @@ bherdm
 ## BlueRetroForever Changes
 
 * Switch 2 controller fixes from [Last-Colossi](https://github.com/Last-Colossi/BlueRetro), [bjerreman](https://github.com/bjerreman/BlueRetro-Switch2Fix) & [Ryan Copley](https://github.com/RyanCopley/BlueRetro)'s forks: NSO GameCube phantom stick, multiple controllers, reconnection ([#1249](https://github.com/darthcloud/BlueRetro/issues/1249)).
-* N64 keyboard & mouse support (64DD & libdragon).
+* Full-size Bluetooth keyboards: every key of US, UK, German, French and Japanese layouts, media keys included, sent as HID key codes.
+* N64 RANDnet keyboard mode: any Bluetooth keyboard can simulate the N64's RANDnet keyboard for retail software.
+* Per-port keyboard settings (mode, layout, Mac or PC). Can be read/written by consoles.
+* Console software (the N64's, so far) can open and close pairing, see what's connected, disconnect a device and set the LED's brightness.
+* N64 mouse support with adjustable sensitivity.
+* Fixes: axis scaling on wireless controllers, LE reconnection, and restarts and firmware updates over BLE.
 
 
 ## AI Disclaimer
 
 LLM coding and testing make this continuation project possible.
 
+
+---
 
 
 # BlueRetro
