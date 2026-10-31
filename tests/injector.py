@@ -72,6 +72,12 @@ class BlueRetroInjector:
         self.__write(0x0C, self.handle)
         return self.__read()
 
+    def send_fb(self, wired_id, fb_type, data):
+        ''' Console feedback as a wired driver queues it: the output, the type, then the data as hex. '''
+        payload = bytes.fromhex(data)
+        self.__write(0x0E, self.handle, struct.pack("<BBB", wired_id, fb_type, len(payload)) + payload)
+        return self.__read()
+
     def send_att_notify(self, att_handle, data):
         ''' An ATT notification from a BLE controller: the handle, then the value as hex. '''
         self.__write(0x0D, self.handle, struct.pack("<H", att_handle) + bytes.fromhex(data))

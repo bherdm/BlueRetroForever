@@ -101,9 +101,15 @@ enum {
     MOUSE,
     PAD,
     RUMBLE,
+    KB_EXT,     /* a keyboard's consumer and system-control reports: media keys, Power, Sleep, Wake */
+    KB_LEDS,    /* a keyboard's LED output report */
     REPORT_MAX,
     //LEDS,
 };
+
+/* The report types with a raw_src_mapping each: KB_EXT goes to the keyboard's kb_state, and
+ * KB_LEDS is an output */
+#define REPORT_MAPPED_MAX KB_EXT
 
 enum {
     BTN_NONE = -1,
@@ -400,6 +406,7 @@ enum {
     FB_TYPE_MEM_WRITE,
     FB_TYPE_GAME_ID,
     FB_TYPE_SYS_ID,
+    FB_TYPE_KB_LEDS,    /* a console keyboard's lock LEDs, for the keyboard's LED output report */
 };
 
 enum {
@@ -452,6 +459,8 @@ struct wired_ctrl {
     uint32_t map_mask[4];
     struct ctrl_btn btns[4];
     struct ctrl_axis_wired axes[ADAPTER_PS2_MAX_AXES];
+    /* the source keyboard's state, set only while a keyboard mode builds from it */
+    const struct kb_state *kb;
 };
 
 struct generic_fb {
@@ -514,6 +523,18 @@ struct bt_ids {
     uint32_t report_type;
 } __packed;
 
+/* A keyboard's held keys as HID usages, kept beside its generic bits for a console keyboard mode
+ * that builds its report from them (the N64's) */
+struct kb_state {
+    uint8_t mods;       /* the eight modifiers, USB order: LCtrl LShift LAlt LGui RCtrl RShift RAlt RGui */
+    uint8_t keys[10];   /* Keyboard/Keypad usages held, in press order */
+    uint8_t key_cnt;
+    uint8_t overflow;   /* more keys held than keys[] holds, or the keyboard's own rollover error */
+    uint8_t consumer_cnt;
+    uint16_t consumer[4]; /* Consumer-page usages held (media keys), in press order */
+    uint8_t system;     /* Generic Desktop system keys held: bit 0 Power (0x81), 1 Sleep (0x82), 2 Wake (0x83) */
+};
+
 struct bt_data_base {
     atomic_t flags[REPORT_MAX];
     struct bt_ids *pids;
@@ -531,6 +552,7 @@ struct bt_data_base {
     uint16_t vid;
     uint16_t pid;
     uint8_t output[128];
+    struct kb_state kb;
 };
 
 struct bt_data {

@@ -231,6 +231,11 @@ static void bt_fb_task(void *param) {
                 case FB_TYPE_MEM_WRITE:
                     mc_storage_update();
                     break;
+                case FB_TYPE_KB_LEDS:
+                    if (bt_data) {
+                        fb_changed = adapter_bridge_fb(fb_data, bt_data);
+                    }
+                    break;
                 case FB_TYPE_STATUS_LED:
                 case FB_TYPE_PLAYER_LED:
                     if (device && device->ids.subtype == BT_PS5_DS) {
@@ -314,7 +319,7 @@ static void bt_host_task(void *param) {
                 struct bt_dev *device = NULL;
 
                 if (bt_host_get_active_dev_from_out_idx(port, &device) >= 0 && device) {
-                    if (device->ids.report_type == KB) {
+                    if (device->ids.report_type == KB || device->ids.report_type == KB_EXT) {
                         new_desired = DEV_KB;
                     }
                     else if (device->ids.report_type == MOUSE) {
@@ -582,7 +587,7 @@ void bt_host_reset_dev(struct bt_dev *device) {
 
 reset_dev:
     adapter_init_buffer(dev_id);
-    memset(bt_adapter.data[dev_id].raw_src_mappings, 0, sizeof(*bt_adapter.data[0].raw_src_mappings) * REPORT_MAX);
+    memset(bt_adapter.data[dev_id].raw_src_mappings, 0, sizeof(*bt_adapter.data[0].raw_src_mappings) * REPORT_MAPPED_MAX);
     memset(bt_adapter.data[dev_id].reports, 0, sizeof(bt_adapter.data[0].reports));
     memset(&bt_adapter.data[dev_id].base, 0, sizeof(bt_adapter.data[0].base));
     memset(device, 0, sizeof(*device));
@@ -801,7 +806,7 @@ void bt_host_bridge(struct bt_dev *device, uint8_t report_id, uint8_t *data, uin
     /* A device's first two reports are let go while it settles, except a keyboard's: its first
      * report is a key, and losing it loses the first key typed after every connection */
     if (atomic_test_bit(&bt_data->base.flags[report_type], BT_INIT) || bt_data->base.report_cnt > 1
-            || report_type == KB) {
+            || report_type == KB || report_type == KB_EXT) {
         bt_data->base.report_id = report_id;
         bt_data->base.input = data;
         bt_data->base.input_len = len;

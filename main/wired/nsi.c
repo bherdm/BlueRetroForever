@@ -240,18 +240,44 @@ static void nsi_game_id_cmd_hdlr(uint8_t channel, uint8_t port, uint16_t item) {
     adapter_q_fb(&fb_data);
 }
 
+/* Both keyboard reads send the console's LEDs: a change goes to the Bluetooth keyboard */
+static void n64_kb_leds(uint8_t channel, uint8_t leds) {
+    if (leds != wired_adapter.data[channel].output[N64_KB_LEDS_OFFSET]) {
+        struct raw_fb fb_data = {0};
+
+        wired_adapter.data[channel].output[N64_KB_LEDS_OFFSET] = leds;
+        fb_data.header.wired_id = channel;
+        fb_data.header.type = FB_TYPE_KB_LEDS;
+        fb_data.header.data_len = 1;
+        fb_data.data[0] = leds;
+        adapter_q_fb(&fb_data);
+    }
+}
+
 static void n64_kb_cmd_hdlr(uint8_t channel, uint8_t port, uint16_t item) {
     uint8_t crc;
+    uint8_t leds;
 
     switch (buf[0]) {
         case GAME_ID_CMD:
             nsi_game_id_cmd_hdlr(channel, port, item);
             break;
         case 0x13:
-            memcpy(buf, wired_adapter.data[channel].output, 7);
-            nsi_bytes_to_items_crc(channel * RMT_MEM_ITEM_NUM, buf, 7, &crc, STOP_BIT_2US);
+            /* The LED byte is read before the reply's items overwrite it */
+            nsi_items_to_bytes(item, &leds, 1);
+            memcpy(buf, wired_adapter.data[channel].output, N64_KB_READ_LEN);
+            nsi_bytes_to_items_crc(channel * RMT_MEM_ITEM_NUM, buf, N64_KB_READ_LEN, &crc, STOP_BIT_2US);
             RMT.conf_ch[channel].conf1.tx_start = 1;
             ++wired_adapter.data[channel].frame_cnt;
+            n64_kb_leds(channel, leds);
+            break;
+        case N64_KB_EXT_READ_CMD:
+            nsi_items_to_bytes(item, &leds, 1);
+            memcpy(buf, wired_adapter.data[channel].output + N64_KB_EXT_READ_OFFSET, N64_KB_EXT_READ_LEN);
+            nsi_bytes_to_items_crc(channel * RMT_MEM_ITEM_NUM, buf, N64_KB_EXT_READ_LEN, &crc, STOP_BIT_2US);
+            RMT.conf_ch[channel].conf1.tx_start = 1;
+            ++wired_adapter.data[channel].frame_cnt;
+            n64_kb_leds(channel, leds);
             break;
         default:
             /* 0x00 & 0xFF cmds goes here, corrupt cmd too! This help avoid ctrl detection error */

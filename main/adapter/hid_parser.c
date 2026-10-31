@@ -195,6 +195,9 @@ static uint32_t hid_usage_is_used(uint32_t page, uint32_t usage) {
             }
         case 0x07: /* Keyboard */
             return 1;
+        case 0x08: /* LEDs */
+            /* Num Lock, Caps Lock, Scroll Lock, Compose, Kana: a keyboard's lock LEDs */
+            return (usage >= 0x01 && usage <= 0x05);
         case 0x09: /* Button */
             if (usage <= 20) {
                 return 1;
@@ -226,6 +229,32 @@ static uint32_t hid_usage_is_used(uint32_t page, uint32_t usage) {
     }
 }
 
+/* In a Consumer Control or System Control collection, every key counts: a keyboard's media keys
+ * and its Power, Sleep and Wake keys */
+static uint32_t hid_usage_is_kb_ext(uint32_t page, uint32_t usage) {
+    switch (page) {
+        case 0x01: /* Generic Desktop Ctrls */
+            return (usage >= 0x81 && usage <= 0x83);
+        case 0x0C: /* Consumer */
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+/* A report of media or system keys only, typed KB_EXT on a device with a keyboard report */
+static bool hid_report_is_kb_ext(struct hid_report *report) {
+    if (report->tag != HID_IN || report->type != REPORT_NONE || report->usage_cnt == 0) {
+        return false;
+    }
+    for (uint32_t i = 0; i < report->usage_cnt; i++) {
+        if (!hid_usage_is_kb_ext(report->usages[i].usage_page, report->usages[i].usage)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static int32_t hid_report_fingerprint(struct hid_report *report) {
     int32_t type = REPORT_NONE;
     for (uint32_t i = 0; i < report->usage_cnt; i++) {
@@ -250,6 +279,9 @@ static int32_t hid_report_fingerprint(struct hid_report *report) {
                     break;
                 case USAGE_GEN_KEYBOARD:
                     type = KB;
+                    break;
+                case 0x08: /* LEDs */
+                    type = KB_LEDS;
                     break;
                 case USAGE_GEN_BUTTON:
                     type = PAD;
@@ -368,6 +400,9 @@ void hid_parser(struct bt_data *bt_data, uint8_t *data, uint32_t len) {
     uint32_t report_usage_idx[HID_TAG_CNT] = {0};
     uint8_t report_idx = 0;
     struct hid_report *wip_report[2] = {0};
+    uint32_t last_usage = 0;    /* the last Usage item, its page in the high half: it names the collection it opens */
+    uint32_t coll_depth = 0;
+    bool kb_ext_coll = false;   /* inside a Consumer Control or System Control application collection */
 
     /* Free pre-existing reports for this device id */
     for (uint32_t i = 0; i < HID_MAX_REPORT; i++) {
@@ -421,6 +456,7 @@ void hid_parser(struct bt_data *bt_data, uint8_t *data, uint32_t len) {
                 break;
             case HID_LI_USAGE: /* 0x09 */
             case HID_LI_USAGE_MIN(1): /* 0x19 */
+                last_usage = (hid_stack[hid_stack_idx].usage_page << 16) | *desc;
                 if (!hid_usage_is_collection(hid_stack[hid_stack_idx].usage_page, *desc)) {
                     if (usage_idx < REPORT_MAX_USAGE) {
                         usage_list[usage_idx++] = *desc;
@@ -430,6 +466,7 @@ void hid_parser(struct bt_data *bt_data, uint8_t *data, uint32_t len) {
                 break;
             case 0x0A: /* USAGE16 */
             case HID_LI_USAGE_MIN(2): /* 0x1A */
+                last_usage = (hid_stack[hid_stack_idx].usage_page << 16) | *(uint16_t *)desc;
                 if (usage_idx < REPORT_MAX_USAGE) {
                     usage_list[usage_idx++] = *(uint16_t *)desc;
                 }
@@ -502,8 +539,11 @@ void hid_parser(struct bt_data *bt_data, uint8_t *data, uint32_t len) {
                     bool bitfield_merge = (usage_idx == 1 && hid_stack[hid_stack_idx].report_size == 1 && hid_stack[hid_stack_idx].report_cnt > 1);
                     uint32_t usage_cnt = (bitfield_merge) ? 1 : hid_stack[hid_stack_idx].report_cnt;
                     for (uint32_t i = 0; i < usage_cnt; i++) {
-                        uint16_t usage = (usage_idx == 1) ? usage_list[0] : usage_list[i];
-                        if (hid_usage_is_used(hid_stack[hid_stack_idx].usage_page, usage)) {
+                        uint16_t usage = (usage_idx == 1) ? usage_list[0] : (i < REPORT_MAX_USAGE) ? usage_list[i] : 0xFFFF;
+                        uint32_t used = (kb_ext_coll)
+                            ? (usage != 0xFFFF && hid_usage_is_kb_ext(hid_stack[hid_stack_idx].usage_page, usage))
+                            : hid_usage_is_used(hid_stack[hid_stack_idx].usage_page, usage);
+                        if (used && report_usage_idx[tag_idx] < REPORT_MAX_USAGE) {
                             uint32_t frag_cnt = 1;
                             if (bitfield_merge) {
                                 frag_cnt = hid_stack[hid_stack_idx].report_cnt / 32;
@@ -511,7 +551,7 @@ void hid_parser(struct bt_data *bt_data, uint8_t *data, uint32_t len) {
                                     frag_cnt++;
                                 }
                             }
-                            for (uint32_t j = 0; j < frag_cnt; j++) {
+                            for (uint32_t j = 0; j < frag_cnt && report_usage_idx[tag_idx] < REPORT_MAX_USAGE; j++) {
                                 uint32_t usage_offset = j * 32;
                                 wip_report[tag_idx]->usages[report_usage_idx[tag_idx]].usage_page = hid_stack[hid_stack_idx].usage_page;
                                 wip_report[tag_idx]->usages[report_usage_idx[tag_idx]].usage = usage;
@@ -587,6 +627,10 @@ void hid_parser(struct bt_data *bt_data, uint8_t *data, uint32_t len) {
                 desc += 2;
                 break;
             case HID_MI_COLLECTION: /* 0xA1 */
+                if (coll_depth++ == 0 && *desc == 0x01 /* Application */) {
+                    kb_ext_coll = (last_usage == ((0x0C << 16) | 0x01) /* Consumer Control */
+                        || last_usage == ((0x01 << 16) | 0x80) /* System Control */);
+                }
                 desc++;
                 break;
             case 0xA4: /* PUSH */
@@ -615,6 +659,9 @@ void hid_parser(struct bt_data *bt_data, uint8_t *data, uint32_t len) {
                 }
                 break;
             case HID_MI_COLLECTION_END: /* 0xC0 */
+                if (coll_depth && --coll_depth == 0) {
+                    kb_ext_coll = false;
+                }
                 break;
             case 0xFF:
                 desc += 4;
@@ -647,6 +694,21 @@ void hid_parser(struct bt_data *bt_data, uint8_t *data, uint32_t len) {
         }
     }
     TESTS_CMDS_LOG("],\n");
+
+    /* A keyboard's media and system reports reach its kb_state; on any other device they stay
+     * untyped and are let go */
+    for (uint32_t i = 0; i < report_idx; i++) {
+        struct hid_report *report = reports[bt_data->base.pids->id][i];
+
+        if (report->tag == HID_IN && report->type == KB) {
+            for (uint32_t j = 0; j < report_idx; j++) {
+                if (hid_report_is_kb_ext(reports[bt_data->base.pids->id][j])) {
+                    reports[bt_data->base.pids->id][j]->type = KB_EXT;
+                }
+            }
+            break;
+        }
+    }
 
     /* Free reports for non-generic devices */
     if (bt_data->base.pids->type > BT_HID_GENERIC) {

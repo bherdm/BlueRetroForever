@@ -7,6 +7,16 @@
 #define _N64_H_
 #include "adapter/adapter.h"
 
+/* The keyboard mode's output: the RANDnet read's reply (command 0x13), then the extended read's
+ * (command 0x2A, libdragon's: marker, version, status and ten key codes) */
+#define N64_KB_READ_LEN 7
+#define N64_KB_EXT_READ_CMD 0x2A
+#define N64_KB_EXT_READ_OFFSET 7
+#define N64_KB_EXT_READ_LEN 23
+/* After the replies, the LED byte the console last sent (0xFF until it sends one), so a change goes
+ * to the Bluetooth keyboard once */
+#define N64_KB_LEDS_OFFSET 30
+
 void n64_meta_init(struct wired_ctrl *ctrl_data);
 void n64_apply_meta(int32_t dev_mode, struct wired_ctrl *ctrl_data);
 void n64_init_buffer(int32_t dev_mode, struct wired_data *wired_data);

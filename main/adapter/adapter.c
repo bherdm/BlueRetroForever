@@ -496,7 +496,10 @@ void adapter_bridge(struct bt_data *bt_data) {
 
                         out->index = out_idx;
                         sys_macro_hdl(out, &bt_data->base.flags[PAD]);
+                        /* A keyboard's report is built from its own keys, not the generic bits */
+                        out->kb = (bt_data->reports[KB] || bt_data->base.report_type == KB_EXT) ? &bt_data->base.kb : NULL;
                         wired_from_generic(dev_mode, out, &wired_adapter.data[out_idx]);
+                        out->kb = NULL;
                         return;
                     }
                 }
@@ -605,7 +608,7 @@ void adapter_init(void) {
         printf("# %s ctrl_output alloc fail\n", __FUNCTION__);
     }
     for (uint32_t i = 0; i < BT_MAX_DEV; i++) {
-        bt_adapter.data[i].raw_src_mappings = heap_caps_aligned_alloc(32, sizeof(struct raw_src_mapping) * REPORT_MAX, MALLOC_CAP_32BIT);
+        bt_adapter.data[i].raw_src_mappings = heap_caps_aligned_alloc(32, sizeof(struct raw_src_mapping) * REPORT_MAPPED_MAX, MALLOC_CAP_32BIT);
         if (bt_adapter.data[i].raw_src_mappings == NULL) {
             printf("# %s bt_adapter.data[%ld].raw_src_mappings alloc fail\n", __FUNCTION__, i);
         }

@@ -94,6 +94,63 @@ static int32_t hid_kb_usage_to_generic(uint32_t usage) {
     return hid_kb_key_to_generic[usage];
 }
 
+/* The keys one keyboard report holds, gathered for the keyboard's kb_state */
+struct hid_kb_held {
+    uint8_t mods;
+    uint8_t rollover;
+    uint8_t cnt;
+    uint8_t keys[32];
+};
+
+static void hid_kb_held_add(struct hid_kb_held *held, uint32_t usage) {
+    if (usage == 0 || usage > 0xFF) {
+        return;
+    }
+    if (usage < 4) {
+        /* ErrorRollOver, POSTFail or ErrorUndefined: the keyboard can't say which keys are held */
+        held->rollover = 1;
+    }
+    else if (usage >= 0xE0 && usage <= 0xE7) {
+        held->mods |= BIT(usage - 0xE0);
+    }
+    else if (held->cnt < ARRAY_SIZE(held->keys)) {
+        held->keys[held->cnt++] = usage;
+    }
+    else {
+        held->rollover = 1;
+    }
+}
+
+/* Released keys leave the kb_state and new ones join at its end, so its keys stay in press order */
+static void hid_kb_state_update(struct kb_state *kb, const struct hid_kb_held *held) {
+    uint32_t cnt = 0;
+
+    kb->mods = held->mods;
+    if (held->rollover) {
+        /* Keep the last good keys */
+        kb->overflow = 1;
+        return;
+    }
+    kb->overflow = 0;
+    for (uint32_t i = 0; i < kb->key_cnt; i++) {
+        if (memchr(held->keys, kb->keys[i], held->cnt)) {
+            kb->keys[cnt++] = kb->keys[i];
+        }
+    }
+    for (uint32_t i = 0; i < held->cnt; i++) {
+        if (memchr(kb->keys, held->keys[i], cnt)) {
+            continue;
+        }
+        if (cnt < ARRAY_SIZE(kb->keys)) {
+            kb->keys[cnt++] = held->keys[i];
+        }
+        else {
+            kb->overflow = 1;
+        }
+    }
+    kb->key_cnt = cnt;
+}
+
 static const uint32_t hid_pad_default_btns_idx[32] = {
     PAD_RB_DOWN, PAD_RB_RIGHT, PAD_RT,
     PAD_RB_LEFT, PAD_RB_UP, PAD_LT,
@@ -147,6 +204,7 @@ static void hid_kb_init(struct hid_report_meta *meta, struct hid_report *report,
 static void hid_kb_to_generic(struct bt_data *bt_data, struct wireless_ctrl *ctrl_data) {
     struct hid_report_meta *meta = &devices_meta[bt_data->base.pids->id].reports_meta[KB];
     struct raw_src_mapping *map = &bt_data->raw_src_mappings[KB];
+    struct hid_kb_held held = {0};
 
     TESTS_CMDS_LOG("\"wireless_input\": {\"report_id\": %ld", bt_data->base.report_id);
 
@@ -171,6 +229,7 @@ static void hid_kb_to_generic(struct bt_data *bt_data, struct wireless_ctrl *ctr
 
         TESTS_CMDS_LOG(", \"modifiers\": %lu", buttons);
 
+        held.mods = buttons & 0xFF;
         for (uint8_t i = 0, mask = 1; mask; i++, mask <<= 1) {
             if (buttons & mask) {
                 ctrl_data->btns[(hid_kb_bitfield_to_generic[i] >> 5)].value |= BIT(hid_kb_bitfield_to_generic[i] & 0x1F);
@@ -197,7 +256,10 @@ static void hid_kb_to_generic(struct bt_data *bt_data, struct wireless_ctrl *ctr
                 for (uint32_t mask = 1; mask; mask <<= 1) {
                     uint32_t key = __builtin_ffs(key_field & mask);
                     if (key) {
-                        int32_t generic = hid_kb_usage_to_generic(key - 1 + bt_data->reports[KB]->usages[map->axes_idx[i]].usage);
+                        uint32_t usage = key - 1 + bt_data->reports[KB]->usages[map->axes_idx[i]].usage;
+                        int32_t generic = hid_kb_usage_to_generic(usage);
+
+                        hid_kb_held_add(&held, usage);
                         if (generic != KBM_NONE) {
                             ctrl_data->btns[generic >> 5].value |= BIT(generic & 0x1F);
                         }
@@ -223,13 +285,132 @@ static void hid_kb_to_generic(struct bt_data *bt_data, struct wireless_ctrl *ctr
                 TESTS_CMDS_LOG("%lu", key);
 
                 int32_t generic = hid_kb_usage_to_generic(key);
+                hid_kb_held_add(&held, key);
                 if (generic != KBM_NONE) {
                     ctrl_data->btns[generic >> 5].value |= BIT(generic & 0x1F);
                 }
             }
         }
     }
+    hid_kb_state_update(&bt_data->base.kb, &held);
     TESTS_CMDS_LOG("]},\n");
+}
+
+/* Released media keys leave the kb_state and new ones join at its end, as its keys do */
+static void hid_kb_consumer_update(struct kb_state *kb, const uint16_t *held, uint32_t held_cnt) {
+    uint32_t cnt = 0;
+
+    for (uint32_t i = 0; i < kb->consumer_cnt; i++) {
+        for (uint32_t j = 0; j < held_cnt; j++) {
+            if (kb->consumer[i] == held[j]) {
+                kb->consumer[cnt++] = kb->consumer[i];
+                break;
+            }
+        }
+    }
+    for (uint32_t j = 0; j < held_cnt; j++) {
+        uint32_t known = 0;
+
+        for (uint32_t i = 0; i < cnt; i++) {
+            known |= (kb->consumer[i] == held[j]);
+        }
+        if (!known && cnt < ARRAY_SIZE(kb->consumer)) {
+            kb->consumer[cnt++] = held[j];
+        }
+    }
+    kb->consumer_cnt = cnt;
+}
+
+/* A keyboard's media and system keys go to its kb_state, and its generic bits stay its keys' */
+static void hid_kb_ext_to_generic(struct bt_data *bt_data, struct wireless_ctrl *ctrl_data) {
+    struct kb_state *kb = &bt_data->base.kb;
+    struct hid_report *report;
+    uint16_t consumer[8];
+    uint32_t consumer_cnt = 0;
+    uint32_t system = 0;
+    uint32_t has_consumer = 0, has_system = 0;
+
+    TESTS_CMDS_LOG("\"wireless_input\": {\"report_id\": %ld", bt_data->base.report_id);
+
+    if (!atomic_test_bit(&bt_data->base.flags[KB_EXT], BT_INIT)) {
+        hid_parser_load_report(bt_data, bt_data->base.report_id);
+        atomic_set_bit(&bt_data->base.flags[KB_EXT], BT_INIT);
+    }
+    report = bt_data->reports[KB_EXT];
+
+    for (uint32_t i = 0; i < report->usage_cnt; i++) {
+        struct hid_usage *usage = &report->usages[i];
+        uint32_t len = usage->bit_size;
+        uint32_t mask = (1ULL << len) - 1;
+        uint32_t byte_offset = usage->bit_offset / 8;
+        uint32_t bit_shift = usage->bit_offset % 8;
+        uint32_t value = ((*(uint32_t *)(bt_data->base.input + byte_offset)) >> bit_shift) & mask;
+        uint32_t first = 0, cnt = 0;
+
+        /* A volatile read keeps the bit test an l32i: the report can be in IRAM */
+        if (*(volatile uint32_t *)&usage->flags & 0x02) {
+            /* Variable: a bit a key */
+            first = usage->usage;
+            cnt = len;
+        }
+        else if ((int32_t)value >= usage->logical_min && (int32_t)value <= usage->logical_max) {
+            /* Array: the value names the key */
+            first = usage->usage + value - usage->logical_min;
+            cnt = 1;
+            value = 1;
+        }
+        for (uint32_t bit = 0; bit < cnt; bit++) {
+            uint32_t held = first + bit;
+
+            if (!(value & BIT(bit))) {
+                continue;
+            }
+            if (usage->usage_page == USAGE_GEN_DESKTOP) {
+                if (held >= 0x81 && held <= 0x83) {
+                    system |= BIT(held - 0x81);
+                }
+            }
+            else if (held && consumer_cnt < ARRAY_SIZE(consumer)) {
+                consumer[consumer_cnt++] = held;
+            }
+        }
+        if (usage->usage_page == USAGE_GEN_DESKTOP) {
+            has_system = 1;
+        }
+        else {
+            has_consumer = 1;
+        }
+    }
+
+    TESTS_CMDS_LOG(", \"consumer\": [");
+    for (uint32_t i = 0; i < consumer_cnt; i++) {
+        TESTS_CMDS_LOG("%s%d", i ? ", " : "", consumer[i]);
+    }
+    TESTS_CMDS_LOG("], \"system\": %lu},\n", system);
+
+    /* A report holds media keys or system keys: each leaves the other's alone */
+    if (has_consumer) {
+        hid_kb_consumer_update(kb, consumer, consumer_cnt);
+    }
+    if (has_system) {
+        kb->system = system;
+    }
+
+    memset((void *)ctrl_data, 0, sizeof(*ctrl_data));
+    ctrl_data->mask = (uint32_t *)bt_data->raw_src_mappings[KB].mask;
+    ctrl_data->desc = (uint32_t *)bt_data->raw_src_mappings[KB].desc;
+    for (uint32_t i = 0; i < 8; i++) {
+        if (kb->mods & BIT(i)) {
+            ctrl_data->btns[(hid_kb_bitfield_to_generic[i] >> 5)].value |= BIT(hid_kb_bitfield_to_generic[i] & 0x1F);
+        }
+    }
+    for (uint32_t i = 0; i < kb->key_cnt; i++) {
+        int32_t generic = hid_kb_usage_to_generic(kb->keys[i]);
+
+        if (generic != KBM_NONE) {
+            ctrl_data->btns[generic >> 5].value |= BIT(generic & 0x1F);
+        }
+    }
 }
 
 static void hid_mouse_init(struct hid_report_meta *meta, struct hid_report *report, struct raw_src_mapping *map) {
@@ -789,6 +970,9 @@ int32_t hid_to_generic(struct bt_data *bt_data, struct wireless_ctrl *ctrl_data)
         case PAD:
             hid_pad_to_generic(bt_data, ctrl_data);
             break;
+        case KB_EXT:
+            hid_kb_ext_to_generic(bt_data, ctrl_data);
+            break;
         default:
             printf("# Unsupported report type: %02lX\n", bt_data->base.report_type);
             return -1;
@@ -798,10 +982,51 @@ int32_t hid_to_generic(struct bt_data *bt_data, struct wireless_ctrl *ctrl_data)
     return 0;
 }
 
+/* A console keyboard's Num and Caps LEDs, in HID's LED order, as the keyboard's LED output report */
+static bool hid_kb_leds_from_generic(struct generic_fb *fb_data, struct bt_data *bt_data) {
+    struct generic_rumble *out = (struct generic_rumble *)bt_data->base.output;
+    struct hid_report *report = bt_data->reports[KB_LEDS];
+    uint32_t id, len;
+
+    if (report == NULL) {
+        return false;
+    }
+    /* Reports can be in IRAM, which takes 32-bit loads only, and GCC copies a field into the
+     * packed generic_rumble byte by byte: volatile reads keep them l32i */
+    id = *(volatile uint32_t *)&report->id;
+    len = *(volatile uint32_t *)&report->len;
+    if (len > sizeof(out->state)) {
+        return false;
+    }
+    memset(out->state, 0, len);
+    for (uint32_t i = 0; i < report->usage_cnt; i++) {
+        for (uint32_t bit = 0; bit < report->usages[i].bit_size; bit++) {
+            uint32_t led = report->usages[i].usage + bit;
+            uint32_t offset = report->usages[i].bit_offset + bit;
+
+            if (led >= 1 && led <= 5 && (fb_data->led & BIT(led - 1))) {
+                out->state[offset / 8] |= BIT(offset % 8);
+            }
+        }
+    }
+    out->report_id = id;
+    out->report_size = len;
+
+    TESTS_CMDS_LOG("\"bt_output\": {\"report_id\": %d, \"data\": [", out->report_id);
+    for (uint32_t i = 0; i < len; i++) {
+        TESTS_CMDS_LOG("%s%d", i ? ", " : "", out->state[i]);
+    }
+    TESTS_CMDS_LOG("]},\n");
+    return true;
+}
+
 bool hid_fb_from_generic(struct generic_fb *fb_data, struct bt_data *bt_data) {
     bool ret = true;
 
     switch (fb_data->type) {
+        case FB_TYPE_KB_LEDS:
+            ret = hid_kb_leds_from_generic(fb_data, bt_data);
+            break;
         case FB_TYPE_RUMBLE:
             if (atomic_test_bit(&bt_data->base.flags[PAD], BT_QUIRK_8BITDO_GC)) {
                 struct generic_rumble *rumble = (struct generic_rumble *)bt_data->base.output;
