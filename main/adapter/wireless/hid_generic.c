@@ -63,7 +63,8 @@ static const uint32_t hid_kb_bitfield_to_generic[8] = {
     KB_RWIN,
 };
 
-static const uint32_t hid_kb_key_to_generic[] = {
+/* HID usage to generic key; KBM_NONE where no generic key carries the usage */
+static const int8_t hid_kb_key_to_generic[] = {
     0, 0, 0, 0, KB_A, KB_B, KB_C, KB_D,
     KB_E, KB_F, KB_G, KB_H, KB_I, KB_J, KB_K, KB_L,
     KB_M, KB_N, KB_O, KB_P, KB_Q, KB_R, KB_S, KB_T,
@@ -77,7 +78,21 @@ static const uint32_t hid_kb_key_to_generic[] = {
     KB_LEFT, KB_DOWN, KB_UP, KB_NUMLOCK, KB_KP_DIV, KB_KP_MULTI, KB_KP_MINUS, KB_KP_PLUS,
     KB_KP_ENTER, KB_KP_1, KB_KP_2, KB_KP_3, KB_KP_4, KB_KP_5, KB_KP_6, KB_KP_7,
     KB_KP_8, KB_KP_9, KB_KP_0, KB_KP_DOT,
+    [0x64] = KB_102ND,
+    [0x65 ... 0x86] = KBM_NONE,
+    [0x87] = KB_RO,
+    [0x88] = KBM_NONE,
+    [0x89] = KB_YEN,
 };
+
+/* The generic key a HID usage is, or KBM_NONE for an error code (0-3) or a usage the table doesn't
+ * carry, so an unknown key presses nothing rather than KB_A or a bit past the table */
+static int32_t hid_kb_usage_to_generic(uint32_t usage) {
+    if (usage < 4 || usage >= ARRAY_SIZE(hid_kb_key_to_generic)) {
+        return KBM_NONE;
+    }
+    return hid_kb_key_to_generic[usage];
+}
 
 static const uint32_t hid_pad_default_btns_idx[32] = {
     PAD_RB_DOWN, PAD_RB_RIGHT, PAD_RT,
@@ -126,7 +141,7 @@ static void hid_kb_init(struct hid_report_meta *meta, struct hid_report *report,
     map->mask[0] |= 0xE6FF0F0F;
     map->mask[1] |= 0xFFFFFFFF;
     map->mask[2] |= 0xFFFFFFFF;
-    map->mask[3] |= 0x7FFFF;
+    map->mask[3] |= 0x3FFFFF;   /* through KB_YEN, below the combos */
 }
 
 static void hid_kb_to_generic(struct bt_data *bt_data, struct wireless_ctrl *ctrl_data) {
@@ -182,8 +197,10 @@ static void hid_kb_to_generic(struct bt_data *bt_data, struct wireless_ctrl *ctr
                 for (uint32_t mask = 1; mask; mask <<= 1) {
                     uint32_t key = __builtin_ffs(key_field & mask);
                     if (key) {
-                        key = key - 1 + bt_data->reports[KB]->usages[map->axes_idx[i]].usage;
-                        ctrl_data->btns[(hid_kb_key_to_generic[key] >> 5)].value |= BIT(hid_kb_key_to_generic[key] & 0x1F);
+                        int32_t generic = hid_kb_usage_to_generic(key - 1 + bt_data->reports[KB]->usages[map->axes_idx[i]].usage);
+                        if (generic != KBM_NONE) {
+                            ctrl_data->btns[generic >> 5].value |= BIT(generic & 0x1F);
+                        }
                     }
                 }
             }
@@ -205,8 +222,9 @@ static void hid_kb_to_generic(struct bt_data *bt_data, struct wireless_ctrl *ctr
                 }
                 TESTS_CMDS_LOG("%lu", key);
 
-                if (key > 3 && key < ARRAY_SIZE(hid_kb_key_to_generic)) {
-                    ctrl_data->btns[(hid_kb_key_to_generic[key] >> 5)].value |= BIT(hid_kb_key_to_generic[key] & 0x1F);
+                int32_t generic = hid_kb_usage_to_generic(key);
+                if (generic != KBM_NONE) {
+                    ctrl_data->btns[generic >> 5].value |= BIT(generic & 0x1F);
                 }
             }
         }

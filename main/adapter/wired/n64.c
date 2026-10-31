@@ -140,7 +140,7 @@ static const uint32_t n64_mouse_btns_mask[32] = {
     BIT(N64_A), 0, 0, 0,
 };
 
-static const uint32_t n64_kb_mask[4] = {0xE6FF0F0F, 0xFFFFFFFF, 0x2D7FFFFF, 0x0007C000 | BR_COMBO_MASK};
+static const uint32_t n64_kb_mask[4] = {0xE6FF0F0F, 0xFFFFFFFF, 0x2D7FFFFF, 0x003FC000 | BR_COMBO_MASK};
 static const uint32_t n64_kb_desc[4] = {0x00000000, 0x00000000, 0x00000000, 0x00000000};
 static const uint16_t n64_kb_scancode[KBM_MAX] = {
  /* KB_A, KB_D, KB_S, KB_W, MOUSE_X_LEFT, MOUSE_X_RIGHT, MOUSE_Y_DOWN MOUSE_Y_UP */
@@ -179,6 +179,9 @@ static const uint16_t n64_kb_scancode[KBM_MAX] = {
     0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0810, 0x0610,
  /* KB_RSHIFT, KB_RALT, KB_RWIN */
     0x060E, 0x020E, 0x0210,
+ /* KB_102ND, KB_RO, KB_YEN: these reach the N64 adapter, but their RANDnet codes wait for the table
+  * libdragon's keyboard.h defines, so the firmware and libdragon share one contract */
+    0x0000, 0x0000, 0x0000,
 };
 
 void IRAM_ATTR n64_init_buffer(int32_t dev_mode, struct wired_data *wired_data) {
@@ -396,15 +399,22 @@ static void n64_kb_from_generic(struct wired_ctrl *ctrl_data, struct wired_data 
     struct n64_kb_map map_tmp = {0};
     uint32_t code_idx = 0;
 
-    for (uint32_t i = 0; i < KBM_MAX && code_idx < ARRAY_SIZE(map_tmp.key_codes); i++) {
+    for (uint32_t i = 0; i < KBM_MAX; i++) {
         if (ctrl_data->map_mask[i / 32] & BIT(i & 0x1F)) {
             if (ctrl_data->btns[i / 32].value & BIT(i & 0x1F)) {
                 if (n64_kb_scancode[i]) {
-                    map_tmp.key_codes[code_idx] = n64_kb_scancode[i];
+                    if (code_idx < ARRAY_SIZE(map_tmp.key_codes)) {
+                        map_tmp.key_codes[code_idx] = n64_kb_scancode[i];
+                    }
                     code_idx++;
                 }
             }
         }
+    }
+    /* A fourth key held is the keyboard's own "too many keys": the status bit says so, and the
+     * three slots keep the first three, as before */
+    if (code_idx > ARRAY_SIZE(map_tmp.key_codes)) {
+        map_tmp.bitfield |= 0x10;
     }
 
     /* map_mask is in IRAM but somehow GCC emit an l8ui which crash the ESP32 */
@@ -412,9 +422,12 @@ static void n64_kb_from_generic(struct wired_ctrl *ctrl_data, struct wired_data 
     volatile uint32_t mask = ctrl_data->map_mask[2];
     if (mask & BIT(KB_HOME & 0x1F)) {
         if (ctrl_data->btns[2].value & BIT(KB_HOME & 0x1F)) {
-            map_tmp.bitfield = 0x01;
+            map_tmp.bitfield |= 0x01;
         }
     }
+
+    TESTS_CMDS_LOG("\"wired_output\": {\"keys\": [%d, %d, %d], \"bitfield\": %d},\n",
+        map_tmp.key_codes[0], map_tmp.key_codes[1], map_tmp.key_codes[2], map_tmp.bitfield);
 
     memcpy(wired_data->output, (void *)&map_tmp, sizeof(map_tmp));
 }

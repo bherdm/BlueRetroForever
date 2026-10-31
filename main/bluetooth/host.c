@@ -798,7 +798,10 @@ void bt_host_bridge(struct bt_dev *device, uint8_t report_id, uint8_t *data, uin
             atomic_clear_bit(&bt_data->base.flags[report_type], BT_INIT);
         }
     }
-    if (atomic_test_bit(&bt_data->base.flags[report_type], BT_INIT) || bt_data->base.report_cnt > 1) {
+    /* A device's first two reports are let go while it settles, except a keyboard's: its first
+     * report is a key, and losing it loses the first key typed after every connection */
+    if (atomic_test_bit(&bt_data->base.flags[report_type], BT_INIT) || bt_data->base.report_cnt > 1
+            || report_type == KB) {
         bt_data->base.report_id = report_id;
         bt_data->base.input = data;
         bt_data->base.input_len = len;

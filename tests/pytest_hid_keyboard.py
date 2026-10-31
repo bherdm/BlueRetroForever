@@ -1,4 +1,6 @@
 ''' Tests for generic HID keyboard. '''
+import pytest
+from device_data.br import system, dev_mode, bt_conn_type
 
 
 DEVICE_NAME = 'HID Keyboard'
@@ -96,3 +98,50 @@ def test_hid_keyboard_descriptor(blueretro):
     assert rsp['hid_reports'][2]["report_id"] == 2
     assert rsp['hid_reports'][2]["usages"][0]["usage_page"] == 0x0C
     assert rsp['hid_reports'][2]["usages"][0]["usage"] == 0x223
+
+
+def test_hid_keyboard_iso_and_jis_keys(blueretro):
+    ''' The ISO key left of Z (HID 0x64) and the JIS ro and yen keys (0x87, 0x89) reach their
+    generic keys, KB_102ND, KB_RO and KB_YEN (generic bits 115-117); a usage no generic key
+    carries (0x88, katakana/hiragana) presses nothing, KB_A included. '''
+    blueretro.send_name(DEVICE_NAME)
+    blueretro.send_hid_desc(HID_DESC)
+
+    for usage, generic in ((0x64, 115), (0x87, 116), (0x89, 117)):
+        rsp = blueretro.send_hid_report(f'a1010000{usage:02x}0000000000')
+        assert rsp['generic_input']['btns'] == [0, 0, 0, 1 << (generic - 96)]
+
+    rsp = blueretro.send_hid_report('a101000088' + '0000000000')
+    assert rsp['generic_input']['btns'] == [0, 0, 0, 0]
+
+
+def test_hid_keyboard_first_report_arrives(blueretro):
+    ''' A keyboard's very first report is a key: it reaches the adapter, where other devices'
+    first two reports are let go while they settle. '''
+    blueretro.send_name(DEVICE_NAME)
+    blueretro.send_hid_desc(HID_DESC)
+
+    rsp = blueretro.send_hid_report('a1010000040000000000')
+    assert rsp['generic_input']['btns'] == [1, 0, 0, 0]
+
+
+@pytest.mark.parametrize('blueretro', [[system.N64, dev_mode.KB, bt_conn_type.BT_BR_EDR]], indirect=True)
+def test_hid_keyboard_n64_too_many_keys(blueretro):
+    ''' The RANDnet report carries three keys: a fourth held sets the keyboard's "too many keys"
+    status bit (0x10), and the three slots keep the first three in generic order. '''
+    blueretro.send_name(DEVICE_NAME)
+    blueretro.send_hid_desc(HID_DESC)
+
+    # A, B, C: three slots, no status bit (KB_A 0x070D, KB_B 0x0807, KB_C 0x0805)
+    rsp = blueretro.send_hid_report('a1010000040506000000')
+    assert rsp['wired_output']['keys'] == [0x070D, 0x0807, 0x0805]
+    assert rsp['wired_output']['bitfield'] == 0
+
+    # A, B, C, D: D comes second in generic order (KB_D 0x0705), C is the fourth
+    rsp = blueretro.send_hid_report('a1010000040506070000')
+    assert rsp['wired_output']['keys'] == [0x070D, 0x0705, 0x0807]
+    assert rsp['wired_output']['bitfield'] == 0x10
+
+    rsp = blueretro.send_hid_report('a1010000000000000000')
+    assert rsp['wired_output']['keys'] == [0, 0, 0]
+    assert rsp['wired_output']['bitfield'] == 0

@@ -259,6 +259,12 @@ enum {
     KB_RSHIFT,
     KB_RALT,
     KB_RWIN,
+    /* The keys only ISO and JIS keyboards have: HID 0x64, the key left of Z (< > on most ISO
+     * layouts), 0x87 (JIS ろ, \ _) and 0x89 (JIS ¥ |). The combos below start at bit 118, so these
+     * three use the last free generic bits. */
+    KB_102ND,
+    KB_RO,
+    KB_YEN,
     KBM_MAX,
 };
 
@@ -277,6 +283,7 @@ enum {
 };
 #define BR_COMBO_CNT (BR_COMBO_MAX - BR_COMBO_BASE_1)
 #define BR_COMBO_MASK 0xFFC00000
+_Static_assert((int)KBM_MAX <= (int)BR_COMBO_BASE_1, "the keyboard keys run into the combos' generic bits");
 
 enum {
     AXIS_NONE = -1,

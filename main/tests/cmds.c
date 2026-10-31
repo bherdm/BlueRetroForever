@@ -10,6 +10,7 @@
 #include "adapter/adapter.h"
 #include "adapter/hid_parser.h"
 #include "adapter/config.h"
+#include "adapter/wired/n64_runtime.h"
 #include "bluetooth/host.h"
 #include "bluetooth/hci.h"
 #include "bluetooth/hidp/hidp.h"
@@ -117,6 +118,12 @@ char *tests_cmds_hdlr(struct tests_cmds_pkt *pkt) {
         case TESTS_CMDS_OUT_CFG:
             /* Output config */
             memcpy(&config.out_cfg[pkt->data[0]], &pkt->data[1], pkt->data_len - 1);
+#ifdef CONFIG_BLUERETRO_N64_AUTO_ID_SWITCHING
+            /* As a config load does, so an N64 port starts in the mode a test asked for */
+            if (pkt->data[0] < 4) {
+                n64_runtime_seed_mode(pkt->data[0], config.out_cfg[pkt->data[0]].dev_mode);
+            }
+#endif
             break;
         case TESTS_CMDS_IN_CFG:
             /* Input config */
