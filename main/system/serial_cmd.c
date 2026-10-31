@@ -20,11 +20,12 @@
 #include "adapter/wired/n64_runtime.h"
 #include "bluetooth/host.h"
 #include "bluetooth/hci.h"
+#include "system/led.h"
 #include "serial_cmd.h"
 
 #define SERIAL_CMD_LINE_MAX 32
 #define SERIAL_CMD_PORTS 4
-#define SERIAL_CMD_LIST "inq start | inq stop | disconnect | status"
+#define SERIAL_CMD_LIST "inq start | inq stop | disconnect | status | led <1-5>"
 
 static char line[SERIAL_CMD_LINE_MAX];
 static uint32_t line_len;
@@ -73,6 +74,19 @@ static void cmd_inquiry(const char *name, uint32_t on) {
     printf("# cmd %s: ok, inquiry %s%s\n", name, on ? "on" : "off", (was == on) ? " already" : "");
 }
 
+/* The Bluetooth LED's brightness, saved: 1 the pull-up's glow, 2-5 the pad's drive strengths.
+ * The reply names the whole line, "# cmd led 2: ...", as the others do */
+static void cmd_led(const char *arg) {
+    uint32_t level = (arg[0] >= '0' && arg[0] <= '9' && arg[1] == '\0') ? (uint32_t)(arg[0] - '0') : 0;
+
+    if (err_led_set_level(level) == 0) {
+        printf("# cmd %s: ok, level=%lu\n", line, level);
+    }
+    else {
+        printf("# cmd %s: refused, a level is %d-%d\n", line, ERR_LED_LEVEL_MIN, ERR_LED_LEVEL_MAX);
+    }
+}
+
 static void cmd_disconnect(void) {
     uint32_t cnt = bt_host_get_flag_dev_cnt(BT_DEV_DEVICE_FOUND);
 
@@ -81,7 +95,7 @@ static void cmd_disconnect(void) {
 }
 
 /* One line, so another task's output can't land in the middle of it:
- * "# cmd status: inquiry=on devices=1 p1=kb@F0:1F:AF:12:34:56 p2=- p3=- p4=- n64=kb,pad,pad,pad"
+ * "# cmd status: inquiry=on devices=1 p1=kb@F0:1F:AF:12:34:56 p2=- p3=- p4=- n64=kb,pad,pad,pad led=2"
  * pN is the device BlueRetro routes to output port N, and n64= is the identity each N64 port
  * answers with now, which changes only when the console next asks (a reset or an identify).
  */
@@ -111,6 +125,9 @@ static void cmd_status(void) {
                 dev_mode_name(n64_runtime_get_active_mode(port, DEV_PAD)));
         }
     }
+    if (len < sizeof(reply)) {
+        snprintf(reply + len, sizeof(reply) - len, " led=%lu", err_led_get_level());
+    }
     printf("%s\n", reply);
 }
 
@@ -126,6 +143,9 @@ static void serial_cmd_run(void) {
     }
     else if (!strcmp(line, "status")) {
         cmd_status();
+    }
+    else if (!strncmp(line, "led ", 4)) {
+        cmd_led(line + 4);
     }
     else if (!strcmp(line, "help")) {
         printf("# cmd help: %s\n", SERIAL_CMD_LIST);

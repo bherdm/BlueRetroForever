@@ -7,7 +7,6 @@ entries:
     core0_stall_highint_hdl (noflash)
     gpio (noflash)
     intr (noflash)
-    led (noflash)
     delay (noflash)
     detect (noflash)
     wired_bare (noflash)

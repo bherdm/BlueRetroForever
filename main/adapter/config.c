@@ -58,6 +58,7 @@ struct hw_config hw_config = {
         0x00FFFF, /* Yellow */
         0xFF0080, /* Purple */
     },
+    .led_level = 1,
 };
 
 static char *hw_config_name_idx[] = {
@@ -104,6 +105,7 @@ static char *hw_config_name_idx[] = {
     "ps_ctrl_color_5",
     "ps_ctrl_color_6",
     "ps_ctrl_color_7",
+    "led_level",
 };
 static uint32_t config_src = DEFAULT_CFG;
 static uint32_t config_version_magic[] = {

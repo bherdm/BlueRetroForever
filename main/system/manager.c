@@ -212,10 +212,11 @@ static void set_leds_as_btn_status(uint8_t state) {
 
     /* Use error LED as well */
     if (state) {
+        err_led_flash_prepare();
         esp_rom_gpio_connect_out_signal(err_led_pin, ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_1, 0, 0);
     }
     else {
-        esp_rom_gpio_connect_out_signal(err_led_pin, ledc_periph_signal[LEDC_HIGH_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_0, 0, 0);
+        err_led_restore();
     }
 }
 

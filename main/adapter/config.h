@@ -92,8 +92,9 @@ struct hw_config {
             uint32_t reset_pin_pulse_ms;
             uint32_t sw_io0_hold_thres_ms[3];
             uint32_t ps_ctrl_colors[8];
+            uint32_t led_level;     /* the Bluetooth LED's brightness, system/led.h's levels */
         };
-        uint32_t data32[43];
+        uint32_t data32[44];
     };
     uint8_t bdaddr[6];
 } __packed;
