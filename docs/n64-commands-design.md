@@ -109,3 +109,73 @@ can change it.
 5. **The green LED is lit whenever the board has power:** a power LED, which only hardware can
    dim.
 6. **Pairing blinks slowly** at the chosen level.
+
+## Keyboard settings from a ROM (2026-10-31)
+
+The user asked for this: ROMs read and change each port's keyboard settings (mode, layout,
+arrangement; docs/classic-keyboard-design.md). N64FlashcartMenu is the first
+planned user. This replaces "Later: mappings and configs" for the keyboard settings only; button mappings
+stay out.
+
+**Two verbs join 0x7B.** Nothing with 0x7B has shipped, and result 1 (unknown verb) already tells a
+ROM a verb is missing, so the protocol stays version 1.
+
+| Verb | Name | Arguments | Reply bytes 6-9 |
+| --- | --- | --- | --- |
+| 0x05 | Keyboard settings | none | each port's settings byte |
+| 0x06 | Set keyboard settings | arg0: port 0-3, or 0xFF for all; arg1: a settings byte | the devices, as status |
+
+**The settings byte:**
+
+| Bits | Meaning |
+| --- | --- |
+| 0-2 | Layout: 0 US, 1 UK, 2 DE, 3 FR, 4 JP |
+| 3 | Arrangement: 0 Mac, 1 PC |
+| 4 | Mode: 0 full layout, 1 classic |
+| 5-6 | Reserved, 0 |
+| 7 | Set: until power off, not saved. Read: the port's setting isn't the saved one |
+
+**How the board answers** (built on `claude/kb-iso-jis`, tested in QEMU):
+- **Read:** the interrupt copies the status block as now, then four bytes from a second DRAM
+  block that the system task refreshes from each port's settings as they apply.
+- **Set:** the interrupt refuses a port past the fourth, a layout above 4 or a reserved bit with
+  result 2, and queues the verb. The system task writes the settings and saves them as BlueRosetta
+  and serial `kb` do (`config_update`). With bit 7, it keeps them until power off instead, over the
+  saved ones (`kb_cfg_temp` in `adapter/config.h`), and doesn't save. Saving a port's settings
+  again, from a ROM, BlueRosetta or serial `kb`, ends its settings until power off.
+- **The settings apply at once:** the 0x2A reply's settings byte changes, and a new mode silences
+  the port for 1.5 s.
+- **The reply shows the state before the change,** as for every verb. A ROM reads again to see it.
+
+**A program that's running when its port's mode changes:** libdragon probes 0x2A only when a
+keyboard connects. So a mode change, from a ROM, BlueRosetta or serial `kb`, leaves the port silent
+for 1.5 s, and libdragon probes the keyboard again when it's back (docs/keyboard-design.md, version
+2). The port still answers 0x7B while silent.
+
+**What it costs:**
+- **The firmware:** two if/else branches in the IRAM handler, four bytes of DRAM, and a case in
+  the system task. Measured with 0x2A's version 2 and the silence: 236 bytes of IRAM, which leaves
+  the universal build 638. The save is a flash write, as BlueRosetta's are, made by the system
+  task, never the interrupt.
+- **The N64:** nothing in libdragon. A program sends 4 bytes and reads 10 through
+  `joybus_exec_cmd`.
+- **Risk:** a ROM with a bug can set a port's keyboard wrong, never wipe a setup. BlueRosetta,
+  serial `kb` or the menu sets it right again.
+
+**How it's tested:**
+- **QEMU** (`tests/pytest_console_cmd.py`): read gives the defaults; a set shows at a later read,
+  and on the config file unless bit 7 was set; bad layouts and reserved bits are refused; 0xFF sets
+  every port.
+- **The test ROM** (`tests/n64_console_cmd`) sends both verbs.
+- **A real N64:** KeyboardTest with a simulated keyboard, a port switched to classic by the test ROM, then the 0x2A
+  probe's fallback after the keyboard reconnects.
+
+**The user's ruling (2026-10-31):** the ROM chooses, and saved is the default. Bit 7 of a set
+keeps the setting until power off. A menu's settings page saves; a menu switching a port to classic
+for one game, a 64DD disk image of RANDnet software say, leaves the user's saved choice standing.
+
+**Re-probing after a mode change, ruled (2026-10-31):** the
+port stays silent for 1.5 s, so libdragon sees a reconnect. No libdragon call.
+
+**The settings byte** is also in 0x2A's version 2 reply, so libdragon reads the layout and
+arrangement live (docs/keyboard-design.md).

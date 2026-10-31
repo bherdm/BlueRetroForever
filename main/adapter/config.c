@@ -17,8 +17,11 @@
 #include "bluetooth/mon.h"
 #include "system/manager.h"
 #include "adapter/wired/n64_runtime.h"
+#include "adapter/wired/n64.h"
 
 struct config config;
+struct kb_cfg kb_cfg_temp[WIRED_MAX_DEV];
+uint32_t kb_cfg_temp_mask;
 struct hw_config hw_config = {
     .external_adapter = 0,
     .hotplug = 0,
@@ -345,6 +348,7 @@ static void config_apply_out_cfg_runtime(void) {
         n64_runtime_seed_mode(port, config.out_cfg[port].dev_mode);
     }
 #endif
+    n64_kb_cfg_apply();
 }
 
 static int32_t config_load_from_file(struct config *data, char *filename) {

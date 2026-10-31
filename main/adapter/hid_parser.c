@@ -242,13 +242,15 @@ static uint32_t hid_usage_is_kb_ext(uint32_t page, uint32_t usage) {
     }
 }
 
-/* A report of media or system keys only, typed KB_EXT on a device with a keyboard report */
+/* A report of media or system keys only, or Apple's Fn, typed KB_EXT on a device with a keyboard
+ * report */
 static bool hid_report_is_kb_ext(struct hid_report *report) {
     if (report->tag != HID_IN || report->type != REPORT_NONE || report->usage_cnt == 0) {
         return false;
     }
     for (uint32_t i = 0; i < report->usage_cnt; i++) {
-        if (!hid_usage_is_kb_ext(report->usages[i].usage_page, report->usages[i].usage)) {
+        if (!hid_usage_is_kb_ext(report->usages[i].usage_page, report->usages[i].usage)
+                && !hid_usage_is_apple_fn(report->usages[i].usage_page, report->usages[i].usage)) {
             return false;
         }
     }
@@ -535,7 +537,9 @@ void hid_parser(struct bt_data *bt_data, uint8_t *data, uint32_t len) {
                 tag_idx = 1;
                 /* Fallthrough */
             case HID_MI_INPUT: /* 0x81 */
-                if (!(*desc & 0x01) && hid_stack[hid_stack_idx].usage_page != 0xFF && usage_list[0] != 0xFF && report_usage_idx[tag_idx] < REPORT_MAX_USAGE) {
+                /* Vendor page 0xFF is let go, but for an Apple keyboard's Fn */
+                if (!(*desc & 0x01) && (hid_stack[hid_stack_idx].usage_page != 0xFF || bt_data->base.vid == HID_APPLE_VID)
+                        && usage_list[0] != 0xFF && report_usage_idx[tag_idx] < REPORT_MAX_USAGE) {
                     bool bitfield_merge = (usage_idx == 1 && hid_stack[hid_stack_idx].report_size == 1 && hid_stack[hid_stack_idx].report_cnt > 1);
                     uint32_t usage_cnt = (bitfield_merge) ? 1 : hid_stack[hid_stack_idx].report_cnt;
                     for (uint32_t i = 0; i < usage_cnt; i++) {
@@ -543,6 +547,7 @@ void hid_parser(struct bt_data *bt_data, uint8_t *data, uint32_t len) {
                         uint32_t used = (kb_ext_coll)
                             ? (usage != 0xFFFF && hid_usage_is_kb_ext(hid_stack[hid_stack_idx].usage_page, usage))
                             : hid_usage_is_used(hid_stack[hid_stack_idx].usage_page, usage);
+                        used |= (bt_data->base.vid == HID_APPLE_VID && hid_usage_is_apple_fn(hid_stack[hid_stack_idx].usage_page, usage));
                         if (used && report_usage_idx[tag_idx] < REPORT_MAX_USAGE) {
                             uint32_t frag_cnt = 1;
                             if (bitfield_merge) {

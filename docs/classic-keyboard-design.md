@@ -161,7 +161,7 @@ Henkan and Menu for Muhenkan. Without translation, AltGr is free, and (a) works 
 
 ## Where it stands (2026-10-31)
 
-Built and proven on the dev board in a real N64 (hw1 universal), firmware 50418d4..90e6039:
+Built and proven on the dev board in a real N64 (hw1 universal), firmware 4a7bf8e..8f6096b:
 - **Config version 4** keeps the keyboard settings as their own array (`kb_cfg`), apart from
   `out_cfg`, because the wired drivers' interrupts index `out_cfg` and the universal build's IRAM
   is full. The BLE characteristic still carries 5 bytes per output. The board upgraded from

@@ -22,6 +22,7 @@
 #include "bluetooth/hci.h"
 #include "system/led.h"
 #include "adapter/config.h"
+#include "tools/util.h"
 #include "serial_cmd.h"
 
 #define SERIAL_CMD_LINE_MAX 32
@@ -115,6 +116,7 @@ static void cmd_kb(const char *args) {
     config.kb_cfg[port[0] - '1'].mode = m;
     config.kb_cfg[port[0] - '1'].layout = l;
     config.kb_cfg[port[0] - '1'].arrangement = a;
+    kb_cfg_temp_mask &= ~BIT(port[0] - '1');
     config_update(config_get_src());
     printf("# cmd %s: ok\n", line);
 }

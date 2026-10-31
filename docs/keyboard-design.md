@@ -1,5 +1,8 @@
 # Bluetooth keyboards on the N64 (design, 2026-10-30)
 
+The extended read is now version 2, sending HID's codes untranslated: see "Version 2 of the
+extended read" at the end. What this design says of 0x2A's codes, bytes and LEDs is version 1's.
+
 ## The goal
 
 The user's words: support every key on any of the keyboard layouts we've discussed, including all
@@ -172,10 +175,57 @@ Today BlueRetro ignores the byte, so Caps Lock's LED can't light.
 ## What happens to the work so far
 
 - **Carried over** (on `claude/kb-iso-jis`, not flashed):
-  - the serial commands (5c6720d);
+  - the serial commands (58f1a4d);
   - the ISO and JIS keys past HID 0x63, for the generic path, so for a keyboard on a gamepad output
-    (b7db281);
-  - the first-report fix (3facf60).
-- **Replaced:** 3facf60's excess-keys bit in `n64_kb_from_generic` gives way to the list builder.
+    (6125ad1);
+  - the first-report fix (6125ad1).
+- **Replaced:** 6125ad1's excess-keys bit in `n64_kb_from_generic` gives way to the list builder.
   Its QEMU test carries over, with expectations for the new order.
-- **Not needed:** the widening on `claude/widen-wip` (0423320).
+- **Not needed:** the widening of the generic button space (dropped).
+
+## Version 2 of the extended read (2026-10-31)
+
+libdragon serves full layout only, and reads only 0x2A. The firmware follows libdragon's plan, on
+the user's rulings:
+- **Codes are HID's, untranslated:**
+  - Keyboard/Keypad usages as they are, 0x0004 to 0x00E7, the modifiers 0xE0 to 0xE7 among them.
+  - Consumer (media) usages are 0x1000 | the usage, every one below 0x1000.
+  - Generic Desktop system keys are 0x2000 | the usage: Power 0x2081, Sleep 0x2082, Wake 0x2083.
+  - Apple's Fn/Globe is 0x3003: usage 0x03 on Apple's vendor page, which an Apple keyboard (VID
+    0x05AC) puts on page 0x00FF, 0xFF00 or 0xFF01, as Linux's hid-apple finds it. It's read from
+    the keyboard report or from a report of its own (beside Eject on Apple's aluminium Bluetooth
+    keyboard). Another maker's vendor page is let go. Tested in QEMU only: the keyboard simulator presents no
+    Apple keyboard.
+- **Order and overflow:** the modifiers, then the keys in press order, then the media, system and
+  Apple keys, as libdragon's keyboard.h documents. More than ten fills the ten slots and sets 0x10.
+- **The bytes:** 24 in all. Marker 0x42, version 2, status, the port's settings byte (0x7B's,
+  docs/n64-commands-design.md), then ten big-endian codes, 0 for none.
+- **The settings byte** follows any settings change at once. Its mode bit is always 0 here, since
+  a classic port answers 0x2A with its identity. Bit 7 is set while a program's settings until
+  power off (0x7B) sit over the saved ones.
+- **LEDs:** 0x2A's LED byte is HID's five bits, Num 0x01 to Kana 0x10, passed through. 0x13's
+  keeps the RND-001's: Num and Caps reach the keyboard, Power stays on the console.
+- **A mode change** lets the port's keys go and leaves the port silent for 1.5 s, longer than
+  libdragon's once-a-second identify. libdragon sees the keyboard leave, and probes it again when
+  it's back. The port still answers 0x7B while silent.
+- **0x13 sends only the RND-001's keys:** in full layout, by position; in classic, translated. A
+  key the RND-001 doesn't have, a media key and a system key aren't sent, and the old page codes
+  (0x2000 | usage, libdragon's Consumer and Desktop pages) are gone: nothing reads them, and they
+  were never a standard (libdragon's answer, 2026-10-31). libdragon no longer sends
+  0x13.
+
+**Proven on a real N64** (2026-10-31, libdragon dev a597ac0b, KeyboardTest 210cc91; the first
+hardware run of version 2):
+- **Walks:** every key arrived as its own HID usage, in order: US 96/96, UK 97/97, DE 97/97, FR
+  97/97, JIS 101/101.
+- **Rollover:** ten held keys (four modifiers, six keys) in order; fourteen held gave the first ten
+  and 0x10.
+- **Beyond the RND-001:** F13-F24, keypad = and ",", LANG1 and LANG2, Menu, 20 media keys (two at
+  once), Power, Sleep and Wake.
+- **LEDs:** HID's bits reached the keyboard.
+- **Settings:** 0x05 and 0x06 through libdragon's 0x7B module. A layout change until power off
+  showed in keyboard_get_layout within a few frames, with no reconnect. A switch to classic dropped
+  the keyboard after the silence, and back to full layout it came back as US Mac.
+- **The N64's cost:** 23-27 µs a frame warm, 47-49 µs cold, with a keyboard connected; nothing
+  without one.
+- **Not covered:** Apple's Fn, which the keyboard simulator can't send.

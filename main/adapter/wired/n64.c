@@ -16,6 +16,7 @@
 #include "tests/cmds.h"
 #include "bluetooth/mon.h"
 #include "n64.h"
+#include "n64_runtime.h"
 #include "n64_kb_layouts.h"
 
 #define N64_AXES_MAX 2
@@ -92,9 +93,17 @@ struct n64_mouse_map {
 #define N64_KB_STATUS_HOME 0x01
 #define N64_KB_STATUS_EXCESS_KEYS 0x10
 #define N64_KB_EXT_MARKER 0x42
-#define N64_KB_EXT_VERSION 1
+#define N64_KB_EXT_VERSION 2
 #define N64_KB_CODE_HOME 0x1010
-#define N64_KB_CODE_POWER 0x2481 /* then Sleep and Wake: libdragon's Generic Desktop page */
+/* The extended read's codes are HID's, as libdragon's keyboard.h has them: Keyboard/Keypad usages
+ * as they are, Consumer usages from 0x1000 and Generic Desktop ones from 0x2000 */
+#define N64_KB_EXT_CONSUMER 0x1000
+#define N64_KB_EXT_DESKTOP 0x2000
+#define N64_KB_EXT_POWER (N64_KB_EXT_DESKTOP | 0x81) /* then Sleep and Wake */
+#define N64_KB_EXT_APPLE_FN 0x3003 /* Apple's vendor page, usage 0x03 */
+/* A port is silent this long after its mode changes: longer than libdragon's once-a-second
+ * identify, so it sees the keyboard go and probes it again */
+#define N64_KB_SILENCE_US 1500000
 
 /* The keyboard mode's replies, big-endian on the wire: the RANDnet read (command 0x13), then the
  * extended read (command 0x2A, libdragon's), each sent as it stands */
@@ -104,13 +113,14 @@ struct n64_kb_map {
     uint8_t ext_marker;
     uint8_t ext_version;
     uint8_t ext_status;
+    uint8_t ext_settings;
     uint16_t ext_key_codes[10];
 } __packed;
 
 _Static_assert(offsetof(struct n64_kb_map, ext_marker) == N64_KB_EXT_READ_OFFSET, "0x2A reply offset");
 _Static_assert(sizeof(struct n64_kb_map) - N64_KB_EXT_READ_OFFSET == N64_KB_EXT_READ_LEN, "0x2A reply length");
 _Static_assert(sizeof(struct n64_kb_map) <= N64_KB_LEDS_OFFSET, "the LED byte follows the replies");
-_Static_assert(N64_KB_CLASSIC_OFFSET < sizeof(((struct wired_data *)0)->output), "the classic flag fits");
+_Static_assert(N64_KB_SILENT_OFFSET < sizeof(((struct wired_data *)0)->output), "the flags fit");
 
 /* The modifier byte's bits, USB order */
 #define N64_KB_LCTRL BIT(0)
@@ -218,9 +228,8 @@ static const uint16_t n64_kb_scancode[KBM_MAX] = {
     0x0000, 0x0000, 0x0000,
 };
 
-/* libdragon's code for each RND-001 key, by the HID usage of the PC key in its place on a Japanese
- * keyboard (libdragon's src/joybus/keyboard_usage.c, inverted); every other usage's code is
- * 0x2000 | usage */
+/* The RND-001's code for each of its keys, by the HID usage of the PC key in its place on a Japanese
+ * keyboard; a usage with no RND-001 key has none */
 static const uint16_t n64_kb_usage_code[256] = {
     [0x04] = 0x0D07, /* A */
     [0x05] = 0x0708, /* B */
@@ -310,7 +319,7 @@ static const uint16_t n64_kb_usage_code[256] = {
 };
 
 static inline uint16_t n64_kb_code(uint8_t usage) {
-    return n64_kb_usage_code[usage] ? n64_kb_usage_code[usage] : 0x2000 | usage;
+    return n64_kb_usage_code[usage];
 }
 
 void IRAM_ATTR n64_init_buffer(int32_t dev_mode, struct wired_data *wired_data) {
@@ -319,11 +328,13 @@ void IRAM_ATTR n64_init_buffer(int32_t dev_mode, struct wired_data *wired_data) 
         {
             struct n64_kb_map *map = (struct n64_kb_map *)wired_data->output;
 
-            memset(wired_data->output, 0, sizeof(struct n64_kb_map));
+            /* The replies and the flags after them: a port that was a gamepad leaves its bytes */
+            memset(wired_data->output, 0, N64_KB_SILENT_OFFSET + 1);
             /* libdragon's probe on connect finds the extended read before any key is pressed */
             map->ext_marker = N64_KB_EXT_MARKER;
             map->ext_version = N64_KB_EXT_VERSION;
-            wired_data->output[N64_KB_CLASSIC_OFFSET] = config.kb_cfg[wired_data->index].mode == KB_MODE_CLASSIC;
+            map->ext_settings = config_kb_cfg_byte(wired_data->index);
+            wired_data->output[N64_KB_CLASSIC_OFFSET] = config_kb_cfg(wired_data->index)->mode == KB_MODE_CLASSIC;
             /* A keyboard just connected takes the console's LEDs at its next read */
             wired_data->output[N64_KB_LEDS_OFFSET] = 0xFF;
             break;
@@ -657,7 +668,7 @@ static uint32_t n64_kb_classic_list(const struct kb_state *kb, const struct kb_c
                 shift = !!(jis & N64_KB_JIS_SHIFT);
             }
         }
-        else {
+        else if (n64_kb_code(usage)) {
             keys[key_cnt++] = n64_kb_code(usage);
         }
     }
@@ -671,7 +682,7 @@ static uint32_t n64_kb_classic_list(const struct kb_state *kb, const struct kb_c
         mods &= ~level3;
     }
     for (uint32_t i = 0; i < 8; i++) {
-        if (mods & BIT(i)) {
+        if ((mods & BIT(i)) && n64_kb_code(0xE0 + i)) {
             list[cnt++] = n64_kb_code(0xE0 + i);
         }
     }
@@ -684,18 +695,22 @@ static uint32_t n64_kb_classic_list(const struct kb_state *kb, const struct kb_c
     return cnt;
 }
 
-/* Both reads are cut from one list: the held modifiers, the keys in press order, then the media and
- * system keys. The extended read sends its first ten, Home among them; the RANDnet read takes Home
- * out as its status bit and sends the first three. In classic mode the list is the RND-001's */
+/* The RANDnet read is cut from a list of RND-001 codes: the held modifiers, then the keys in press
+ * order, each by its place, and only those the RND-001 has. It takes Home out as its status bit and
+ * sends the first three. In classic mode the list is the RND-001's, translated. The extended read is
+ * every key as its HID code, the media, system and Apple keys after the others, the first ten, and
+ * the port's settings */
 static void n64_kb_from_state(const struct kb_state *kb, struct wired_data *wired_data) {
-    const struct kb_cfg *cfg = &config.kb_cfg[wired_data->index];
+    const struct kb_cfg *cfg = config_kb_cfg(wired_data->index);
     uint32_t classic = (cfg->mode == KB_MODE_CLASSIC);
     struct n64_kb_map map_tmp = {
         .ext_marker = classic ? 0 : N64_KB_EXT_MARKER,
         .ext_version = classic ? 0 : N64_KB_EXT_VERSION,
+        .ext_settings = config_kb_cfg_byte(wired_data->index),
     };
-    uint16_t list[8 + ARRAY_SIZE(kb->keys) + ARRAY_SIZE(kb->consumer) + 3];
-    uint32_t list_cnt = 0;
+    uint16_t list[8 + 1 + ARRAY_SIZE(kb->keys) + ARRAY_SIZE(kb->consumer) + 3];
+    uint16_t ext[ARRAY_SIZE(list)];
+    uint32_t list_cnt = 0, ext_cnt = 0;
     uint32_t read_cnt = 0;
 
     wired_data->output[N64_KB_CLASSIC_OFFSET] = classic;
@@ -704,30 +719,37 @@ static void n64_kb_from_state(const struct kb_state *kb, struct wired_data *wire
     }
     for (uint32_t i = 0; !classic && i < 8; i++) {
         if (kb->mods & BIT(i)) {
-            list[list_cnt++] = n64_kb_code(0xE0 + i);
+            if (n64_kb_code(0xE0 + i)) {
+                list[list_cnt++] = n64_kb_code(0xE0 + i);
+            }
+            ext[ext_cnt++] = 0xE0 + i;
         }
     }
     for (uint32_t i = 0; !classic && i < kb->key_cnt; i++) {
-        list[list_cnt++] = n64_kb_code(kb->keys[i]);
+        if (n64_kb_code(kb->keys[i])) {
+            list[list_cnt++] = n64_kb_code(kb->keys[i]);
+        }
+        ext[ext_cnt++] = kb->keys[i];
     }
     for (uint32_t i = 0; !classic && i < kb->consumer_cnt; i++) {
-        /* libdragon's Consumer pages, 0x21 to 0x23, carry usages 0x0001 to 0x02FF: 0x0100 and
-         * 0x0200 aren't keys and would make a code with a zero byte, and from 0x0300 the codes
-         * would be the Generic Desktop page's */
-        if ((kb->consumer[i] & 0xFF) && kb->consumer[i] < 0x300) {
-            list[list_cnt++] = ((0x21 + (kb->consumer[i] >> 8)) << 8) | (kb->consumer[i] & 0xFF);
+        /* From 0x1000 a code would be the Generic Desktop page's */
+        if (kb->consumer[i] < N64_KB_EXT_CONSUMER) {
+            ext[ext_cnt++] = N64_KB_EXT_CONSUMER | kb->consumer[i];
         }
     }
     for (uint32_t i = 0; !classic && i < 3; i++) {
         if (kb->system & BIT(i)) {
-            list[list_cnt++] = N64_KB_CODE_POWER + i;
+            ext[ext_cnt++] = N64_KB_EXT_POWER + i;
         }
     }
-
-    for (uint32_t i = 0; i < list_cnt && i < ARRAY_SIZE(map_tmp.ext_key_codes); i++) {
-        map_tmp.ext_key_codes[i] = sys_cpu_to_be16(list[i]);
+    if (!classic && kb->fn) {
+        ext[ext_cnt++] = N64_KB_EXT_APPLE_FN;
     }
-    if (list_cnt > ARRAY_SIZE(map_tmp.ext_key_codes) || kb->overflow) {
+
+    for (uint32_t i = 0; i < ext_cnt && i < ARRAY_SIZE(map_tmp.ext_key_codes); i++) {
+        map_tmp.ext_key_codes[i] = sys_cpu_to_be16(ext[i]);
+    }
+    if (ext_cnt > ARRAY_SIZE(map_tmp.ext_key_codes) || kb->overflow) {
         map_tmp.ext_status |= N64_KB_STATUS_EXCESS_KEYS;
     }
 
@@ -751,7 +773,8 @@ static void n64_kb_from_state(const struct kb_state *kb, struct wired_data *wire
     for (uint32_t i = 0; i < ARRAY_SIZE(map_tmp.ext_key_codes); i++) {
         TESTS_CMDS_LOG("%s%d", i ? ", " : "", sys_be16_to_cpu(map_tmp.ext_key_codes[i]));
     }
-    TESTS_CMDS_LOG("], \"ext_status\": %d, \"ext_marker\": %d},\n", map_tmp.ext_status, map_tmp.ext_marker);
+    TESTS_CMDS_LOG("], \"ext_status\": %d, \"ext_settings\": %d, \"ext_marker\": %d},\n", map_tmp.ext_status,
+        map_tmp.ext_settings, map_tmp.ext_marker);
 
     memcpy(wired_data->output, (void *)&map_tmp, sizeof(map_tmp));
 }
@@ -781,9 +804,8 @@ void n64_fb_to_generic(int32_t dev_mode, struct raw_fb *raw_fb_data, struct gene
     fb_data->type = raw_fb_data->header.type;
 
     if (fb_data->type == FB_TYPE_KB_LEDS) {
-        /* RANDnet's Num (0x01) and Caps (0x02) are HID's Num and Caps; its Power (0x04) would light
-         * a keyboard's Scroll Lock, and libdragon lights it by default, so it stays on the console */
-        fb_data->led = raw_fb_data->data[0] & 0x03;
+        /* HID's LED bits: the interrupt keeps the ones each read lights */
+        fb_data->led = raw_fb_data->data[0];
         return;
     }
 
@@ -806,4 +828,68 @@ void IRAM_ATTR n64_gen_turbo_mask(struct wired_data *wired_data) {
 
     wired_gen_turbo_mask_btns16_pos(wired_data, &map_mask->buttons, n64_btns_mask);
     wired_gen_turbo_mask_axes8(wired_data, map_mask->axes, N64_AXES_MAX, n64_axes_idx, n64_axes_meta);
+}
+
+/* The settings byte each N64 port's keyboard last took, to see what a config change changed */
+static uint8_t n64_kb_cfg_applied[4];
+static bool n64_kb_cfg_seeded;
+static esp_timer_handle_t n64_kb_silence_timer;
+
+static void n64_kb_silence_end(void *arg) {
+    for (uint32_t port = 0; port < ARRAY_SIZE(n64_kb_cfg_applied); port++) {
+        wired_adapter.data[port].output[N64_KB_SILENT_OFFSET] = 0;
+    }
+}
+
+/* A config change, applied to the keyboards on the ports: new settings show in the extended read
+ * at once. A new mode lets the port's keys go and silences it for a moment, so a program sees the
+ * keyboard leave and probes it again in its new mode */
+void n64_kb_cfg_apply(void) {
+    uint32_t silence = 0;
+
+    for (uint32_t port = 0; port < ARRAY_SIZE(n64_kb_cfg_applied); port++) {
+        uint8_t settings = config_kb_cfg_byte(port);
+        uint32_t mode_changed = (settings ^ n64_kb_cfg_applied[port]) & (KB_MODE_CLASSIC << 4);
+        struct wired_data *wired_data = &wired_adapter.data[port];
+        int32_t dev_mode = config.out_cfg[port].dev_mode;
+
+        if (n64_kb_cfg_seeded && settings == n64_kb_cfg_applied[port]) {
+            continue;
+        }
+        n64_kb_cfg_applied[port] = settings;
+        if (!n64_kb_cfg_seeded || wired_adapter.system_id != N64) {
+            continue;
+        }
+#ifdef CONFIG_BLUERETRO_N64_AUTO_ID_SWITCHING
+        dev_mode = n64_runtime_get_active_mode(port, dev_mode);
+#endif
+        if (dev_mode != DEV_KB) {
+            continue;
+        }
+        if (mode_changed) {
+            n64_init_buffer(DEV_KB, wired_data);
+            wired_data->output[N64_KB_SILENT_OFFSET] = 1;
+            silence = 1;
+        }
+        else {
+            ((struct n64_kb_map *)wired_data->output)->ext_settings = settings;
+        }
+        TESTS_CMDS_LOG("\"kb_cfg_applied\": {\"port\": %lu, \"silenced\": %d, \"ext_settings\": %d},\n", port,
+            mode_changed ? 1 : 0, ((struct n64_kb_map *)wired_data->output)->ext_settings);
+    }
+    n64_kb_cfg_seeded = true;
+
+    if (silence) {
+        if (n64_kb_silence_timer == NULL) {
+            const esp_timer_create_args_t args = {
+                .callback = &n64_kb_silence_end,
+                .name = "n64_kb_silence",
+            };
+
+            esp_timer_create(&args, &n64_kb_silence_timer);
+        }
+        /* A second change restarts it, so every port changed in that time gets its full silence */
+        esp_timer_stop(n64_kb_silence_timer);
+        esp_timer_start_once(n64_kb_silence_timer, N64_KB_SILENCE_US);
+    }
 }

@@ -771,6 +771,7 @@ void bt_att_cfg_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, u
                     if (data_len >= sizeof(config.out_cfg[0]) + sizeof(config.kb_cfg[0])) {
                         memcpy((void *)&config.kb_cfg[out_cfg_id], wr_req->value + sizeof(config.out_cfg[0]),
                             sizeof(config.kb_cfg[0]));
+                        kb_cfg_temp_mask &= ~BIT(out_cfg_id);
                     }
                     config_update(config_get_src());
                     bt_att_cmd_wr_rsp(device->acl_handle);

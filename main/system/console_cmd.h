@@ -22,7 +22,13 @@ enum {
     CONSOLE_CMD_PAIRING_CLOSE,
     CONSOLE_CMD_DISCONNECT,     /* arg0: port 0-3, or CONSOLE_CMD_ALL_PORTS */
     CONSOLE_CMD_LED_LEVEL,      /* arg0: system/led.h's level; there is no off */
+    CONSOLE_CMD_KB_SETTINGS,    /* the reply's bytes 6-9: each port's keyboard settings byte */
+    CONSOLE_CMD_KB_SET,         /* arg0: port 0-3, or CONSOLE_CMD_ALL_PORTS; arg1: a settings byte */
 };
+
+/* The settings byte's bits that aren't settings: config.h's kb_cfg_byte has the others */
+#define CONSOLE_CMD_KB_LAYOUT_MASK 0x07
+#define CONSOLE_CMD_KB_RESERVED 0x60
 
 #define CONSOLE_CMD_ALL_PORTS 0xFF
 

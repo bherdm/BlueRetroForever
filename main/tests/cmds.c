@@ -11,6 +11,7 @@
 #include "adapter/hid_parser.h"
 #include "adapter/config.h"
 #include "adapter/wired/n64_runtime.h"
+#include "adapter/wired/n64.h"
 #include "bluetooth/host.h"
 #include "bluetooth/hci.h"
 #include "bluetooth/hidp/hidp.h"
@@ -124,6 +125,7 @@ char *tests_cmds_hdlr(struct tests_cmds_pkt *pkt) {
             if (pkt->data_len - 1 > sizeof(config.out_cfg[0])) {
                 memcpy(&config.kb_cfg[pkt->data[0]], &pkt->data[1 + sizeof(config.out_cfg[0])],
                     MIN(pkt->data_len - 1 - sizeof(config.out_cfg[0]), sizeof(config.kb_cfg[0])));
+                kb_cfg_temp_mask &= ~BIT(pkt->data[0]);
             }
 #ifdef CONFIG_BLUERETRO_N64_AUTO_ID_SWITCHING
             /* As a config load does, so an N64 port starts in the mode a test asked for */
@@ -131,6 +133,7 @@ char *tests_cmds_hdlr(struct tests_cmds_pkt *pkt) {
                 n64_runtime_seed_mode(pkt->data[0], config.out_cfg[pkt->data[0]].dev_mode);
             }
 #endif
+            n64_kb_cfg_apply();
             break;
         case TESTS_CMDS_IN_CFG:
             /* Input config */

@@ -73,6 +73,13 @@ struct kb_cfg {
     uint8_t arrangement;
 } __packed;
 
+/* The settings as one byte, the way a console's program reads them (docs/n64-commands-design.md):
+ * bits 0-2 the layout, bit 3 the arrangement, bit 4 the mode, bit 7 until power off, not saved */
+#define KB_CFG_BYTE_UNTIL_OFF 0x80
+static inline __attribute__((always_inline)) uint8_t kb_cfg_byte(const struct kb_cfg *cfg) {
+    return cfg->layout | (cfg->arrangement << 3) | (cfg->mode << 4);
+}
+
 struct in_cfg {
     uint8_t bt_dev_id;
     uint8_t bt_subdev_id;
@@ -129,6 +136,20 @@ struct hw_config {
 
 extern struct config config;
 extern struct hw_config hw_config;
+
+/* Keyboard settings a console's program set until power off, over the saved ones: a port's bit in
+ * kb_cfg_temp_mask says it has them. Saving that port's settings, from anywhere, ends them */
+extern struct kb_cfg kb_cfg_temp[WIRED_MAX_DEV];
+extern uint32_t kb_cfg_temp_mask;
+
+/* A port's keyboard settings as they apply now. Inlined, so interrupt code can call it */
+static inline __attribute__((always_inline)) const struct kb_cfg *config_kb_cfg(uint32_t port) {
+    return (kb_cfg_temp_mask & (1u << port)) ? &kb_cfg_temp[port] : &config.kb_cfg[port];
+}
+
+static inline __attribute__((always_inline)) uint8_t config_kb_cfg_byte(uint32_t port) {
+    return kb_cfg_byte(config_kb_cfg(port)) | ((kb_cfg_temp_mask & (1u << port)) ? KB_CFG_BYTE_UNTIL_OFF : 0);
+}
 
 void config_set_rst_bare_core(bool value);
 void hw_config_patch(void);

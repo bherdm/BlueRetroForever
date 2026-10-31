@@ -39,6 +39,7 @@ struct hid_report_meta {
     int8_t hid_btn_idx;
     int8_t hid_hat_idx;
     uint8_t kb_bitfield;
+    int8_t kb_fn_idx;   /* Apple's Fn, where a keyboard report carries it */
 };
 
 struct hid_reports_meta {
@@ -132,7 +133,7 @@ static uint32_t hid_kb_apple_iso_swap(struct bt_data *bt_data) {
     if (bt_data->base.vid != 0x05AC || out_idx < 0 || out_idx >= WIRED_MAX_DEV) {
         return 0;
     }
-    cfg = &config.kb_cfg[out_idx];
+    cfg = config_kb_cfg(out_idx);
     return cfg->arrangement == KB_ARRANGEMENT_MAC
         && (cfg->layout == KB_LAYOUT_UK || cfg->layout == KB_LAYOUT_DE || cfg->layout == KB_LAYOUT_FR);
 }
@@ -189,14 +190,19 @@ static const uint32_t hid_pad_xinput_btns_idx[32] = {
 static void hid_kb_init(struct hid_report_meta *meta, struct hid_report *report, struct raw_src_mapping *map) {
     memset(map->axes_idx, -1, sizeof(map->axes_idx));
     meta->hid_btn_idx = -1;
+    meta->kb_fn_idx = -1;
 
     for (uint32_t i = 0; i < report->usage_cnt; i++) {
-        if (report->usages[i].usage > 0 && report->usages[i].usage < 0xE0) {
+        if (report->usages[i].usage_page == USAGE_GEN_KEYBOARD
+                && report->usages[i].usage > 0 && report->usages[i].usage < 0xE0) {
             meta->kb_bitfield = 1;
             break;
         }
     }
     for (uint32_t i = 0, key_idx = 0; i < report->usage_cnt; i++) {
+        if (hid_usage_is_apple_fn(report->usages[i].usage_page, report->usages[i].usage)) {
+            meta->kb_fn_idx = i;
+        }
         switch (report->usages[i].usage_page) {
             case USAGE_GEN_KEYBOARD:
                 if (report->usages[i].usage >= 0xE0 && report->usages[i].usage <= 0xE7) {
@@ -308,6 +314,11 @@ static void hid_kb_to_generic(struct bt_data *bt_data, struct wireless_ctrl *ctr
             }
         }
     }
+    if (meta->kb_fn_idx > -1) {
+        uint32_t offset = bt_data->reports[KB]->usages[meta->kb_fn_idx].bit_offset;
+
+        bt_data->base.kb.fn = ((*(uint32_t *)(bt_data->base.input + offset / 8)) >> (offset % 8)) & 0x01;
+    }
     if (hid_kb_apple_iso_swap(bt_data)) {
         for (uint32_t i = 0; i < held.cnt; i++) {
             if (held.keys[i] == 0x35 || held.keys[i] == 0x64) {
@@ -350,8 +361,8 @@ static void hid_kb_ext_to_generic(struct bt_data *bt_data, struct wireless_ctrl 
     struct hid_report *report;
     uint16_t consumer[8];
     uint32_t consumer_cnt = 0;
-    uint32_t system = 0;
-    uint32_t has_consumer = 0, has_system = 0;
+    uint32_t system = 0, fn = 0;
+    uint32_t has_consumer = 0, has_system = 0, has_fn = 0;
 
     TESTS_CMDS_LOG("\"wireless_input\": {\"report_id\": %ld", bt_data->base.report_id);
 
@@ -382,6 +393,11 @@ static void hid_kb_ext_to_generic(struct bt_data *bt_data, struct wireless_ctrl 
             cnt = 1;
             value = 1;
         }
+        if (hid_usage_is_apple_fn(usage->usage_page, usage->usage)) {
+            fn = value & 0x01;
+            has_fn = 1;
+            continue;
+        }
         for (uint32_t bit = 0; bit < cnt; bit++) {
             uint32_t held = first + bit;
 
@@ -409,14 +425,17 @@ static void hid_kb_ext_to_generic(struct bt_data *bt_data, struct wireless_ctrl 
     for (uint32_t i = 0; i < consumer_cnt; i++) {
         TESTS_CMDS_LOG("%s%d", i ? ", " : "", consumer[i]);
     }
-    TESTS_CMDS_LOG("], \"system\": %lu},\n", system);
+    TESTS_CMDS_LOG("], \"system\": %lu, \"fn\": %lu},\n", system, fn);
 
-    /* A report holds media keys or system keys: each leaves the other's alone */
+    /* A report holds media keys, system keys or Apple's Fn: each leaves the others alone */
     if (has_consumer) {
         hid_kb_consumer_update(kb, consumer, consumer_cnt);
     }
     if (has_system) {
         kb->system = system;
+    }
+    if (has_fn) {
+        kb->fn = fn;
     }
 
     memset((void *)ctrl_data, 0, sizeof(*ctrl_data));

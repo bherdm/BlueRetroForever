@@ -269,6 +269,14 @@ static void n64_kb_cmd_hdlr(uint8_t channel, uint8_t port, uint16_t item) {
     uint8_t crc;
     uint8_t leds;
 
+    if (wired_adapter.data[channel].output[N64_KB_SILENT_OFFSET]) {
+        /* Its mode just changed: no answer, as with nothing in the port */
+        RMT.conf_ch[channel].conf1.mem_rd_rst = 1;
+        RMT.conf_ch[channel].conf1.mem_rd_rst = 0;
+        RMT.conf_ch[channel].conf1.mem_owner = RMT_LL_MEM_OWNER_HW;
+        RMT.conf_ch[channel].conf1.rx_en = 1;
+        return;
+    }
     switch (buf[0]) {
         case GAME_ID_CMD:
             nsi_game_id_cmd_hdlr(channel, port, item);
@@ -280,7 +288,7 @@ static void n64_kb_cmd_hdlr(uint8_t channel, uint8_t port, uint16_t item) {
             nsi_bytes_to_items_crc(channel * RMT_MEM_ITEM_NUM, buf, N64_KB_READ_LEN, &crc, STOP_BIT_2US);
             RMT.conf_ch[channel].conf1.tx_start = 1;
             ++wired_adapter.data[channel].frame_cnt;
-            n64_kb_leds(channel, leds);
+            n64_kb_leds(channel, leds & N64_KB_LEDS_RND);
             break;
         case N64_KB_EXT_READ_CMD:
             if (!wired_adapter.data[channel].output[N64_KB_CLASSIC_OFFSET]) {
@@ -289,7 +297,7 @@ static void n64_kb_cmd_hdlr(uint8_t channel, uint8_t port, uint16_t item) {
                 nsi_bytes_to_items_crc(channel * RMT_MEM_ITEM_NUM, buf, N64_KB_EXT_READ_LEN, &crc, STOP_BIT_2US);
                 RMT.conf_ch[channel].conf1.tx_start = 1;
                 ++wired_adapter.data[channel].frame_cnt;
-                n64_kb_leds(channel, leds);
+                n64_kb_leds(channel, leds & N64_KB_LEDS_HID);
                 break;
             }
             /* Fallthrough: classic mode is an RND-001, which has no extended read */

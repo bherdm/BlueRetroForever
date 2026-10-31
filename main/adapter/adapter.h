@@ -533,6 +533,7 @@ struct kb_state {
     uint8_t consumer_cnt;
     uint16_t consumer[4]; /* Consumer-page usages held (media keys), in press order */
     uint8_t system;     /* Generic Desktop system keys held: bit 0 Power (0x81), 1 Sleep (0x82), 2 Wake (0x83) */
+    uint8_t fn;         /* Apple's Fn (Globe) key held */
 };
 
 struct bt_data_base {
