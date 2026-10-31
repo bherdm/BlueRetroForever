@@ -1632,6 +1632,7 @@ void bt_hci_evt_hdlr(struct bt_hci_pkt *bt_hci_evt_pkt) {
                         device->ids.id);
                     bt_host_clear_le_ltk(&device->le_remote_bdaddr);
                 }
+                bt_smp_dev_reset(device);
                 bt_host_reset_dev(device);
                 if (bt_host_get_active_dev(&device) == BT_NONE) {
                     if (config.global_cfg.inquiry_mode == INQ_AUTO) {

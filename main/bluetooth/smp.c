@@ -118,6 +118,15 @@ static void bt_smp_public_key(uint16_t handle, const uint8_t key[64]) {
     bt_smp_cmd(handle, BT_SMP_CMD_PUBLIC_KEY, sizeof(struct bt_smp_public_key));
 }
 
+/* A Secure Connections pairing that can't go on ends with Pairing Failed, so the
+ * controller can retry at once instead of waiting for a timeout. */
+static void bt_smp_sc_fail(struct bt_dev *device, uint8_t reason) {
+    struct bt_smp_pairing_fail *fail = (struct bt_smp_pairing_fail *)bt_hci_pkt_tmp.smp_data;
+    fail->reason = reason;
+    bt_smp_cmd(device->acl_handle, BT_SMP_CMD_PAIRING_FAIL, sizeof(*fail));
+    sc_device = NULL;
+}
+
 static void xor_128(const uint8_t p[16], const uint8_t q[16], uint8_t r[16]) {
     size_t len = 16;
 
@@ -396,11 +405,13 @@ void bt_smp_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, uint3
                         device->rrand, 0, expected) ||
                         memcmp(expected, device->sc_peer_confirm, sizeof(expected))) {
                     printf("# LE Secure Connections confirm validation failed\n");
+                    bt_smp_sc_fail(device, BT_SMP_ERR_CONFIRM_FAILED);
                     break;
                 }
                 device->sc_state |= BT_SC_RANDOM_READY;
                 if ((device->sc_state & BT_SC_DHKEY_READY) && sc_send_dhcheck(device)) {
                     printf("# LE Secure Connections key derivation failed\n");
+                    bt_smp_sc_fail(device, BT_SMP_ERR_UNSPECIFIED);
                 }
                 break;
             }
@@ -437,6 +448,7 @@ void bt_smp_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, uint3
                     &device->pres[1], &device->le_remote_bdaddr, &local, expected) ||
                     memcmp(expected, remote->e, sizeof(expected))) {
                 printf("# LE Secure Connections DHKey check failed\n");
+                bt_smp_sc_fail(device, BT_SMP_ERR_DHKEY_CHECK_FAILED);
                 break;
             }
             memcpy(info.ltk, device->ltk, sizeof(info.ltk));
@@ -444,6 +456,7 @@ void bt_smp_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, uint3
             bt_host_store_le_ident(&device->le_remote_bdaddr, &ident);
             bt_hci_add_to_accept_list(&device->le_remote_bdaddr);
             bt_hci_start_encryption(device->acl_handle, 0, 0, device->ltk);
+            sc_device = NULL;
             break;
         }
         case BT_SMP_CMD_ENCRYPT_INFO:
@@ -497,8 +510,10 @@ void bt_smp_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, uint3
 }
 
 void bt_smp_p256_complete(uint8_t status, const uint8_t key[64]) {
-    if (!sc_device || status) {
+    if (!sc_device) return;
+    if (status) {
         printf("# LE P-256 public key generation failed: 0x%02X\n", status);
+        bt_smp_sc_fail(sc_device, BT_SMP_ERR_UNSPECIFIED);
         return;
     }
     memcpy(sc_device->sc_public_key, key, sizeof(sc_device->sc_public_key));
@@ -506,13 +521,22 @@ void bt_smp_p256_complete(uint8_t status, const uint8_t key[64]) {
 }
 
 void bt_smp_dhkey_complete(uint8_t status, const uint8_t dhkey[32]) {
-    if (!sc_device || status) {
+    if (!sc_device) return;
+    if (status) {
         printf("# LE DHKey generation failed: 0x%02X\n", status);
+        bt_smp_sc_fail(sc_device, BT_SMP_ERR_DHKEY_CHECK_FAILED);
         return;
     }
     memcpy(sc_device->sc_dhkey, dhkey, sizeof(sc_device->sc_dhkey));
     sc_device->sc_state |= BT_SC_DHKEY_READY;
     if ((sc_device->sc_state & BT_SC_RANDOM_READY) && sc_send_dhcheck(sc_device)) {
         printf("# LE Secure Connections key derivation failed\n");
+        bt_smp_sc_fail(sc_device, BT_SMP_ERR_UNSPECIFIED);
     }
+}
+
+/* A device that disconnects mid-pairing takes its Secure Connections state with it,
+ * so a late P-256 or DHKey event can't act on a reused device slot. */
+void bt_smp_dev_reset(struct bt_dev *device) {
+    if (device == sc_device) sc_device = NULL;
 }
