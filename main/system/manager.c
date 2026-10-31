@@ -28,6 +28,7 @@
 #include "system/led.h"
 #include "bare_metal_app_cpu.h"
 #include "serial_cmd.h"
+#include "console_cmd.h"
 #include "manager.h"
 
 #define BOOT_BTN_PIN 0
@@ -449,6 +450,7 @@ static void sys_mgr_task(void *arg) {
     while (1) {
         boot_btn_hdl();
         serial_cmd_poll();
+        console_cmd_poll();
 
         /* Fetch system cmd to execute */
         if (cmd_q_hdl) {

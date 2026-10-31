@@ -15,6 +15,7 @@
 #include "bluetooth/hci.h"
 #include "bluetooth/hidp/hidp.h"
 #include "bluetooth/hidp/sw2.h"
+#include "system/console_cmd.h"
 #include "coverage.h"
 #include "cmds.h"
 
@@ -33,6 +34,7 @@ enum {
     TESTS_CMDS_COV_DUMP,
     TESTS_CMDS_ATT_NOTIFY,
     TESTS_CMDS_FB,
+    TESTS_CMDS_CONSOLE,
 };
 
 static uint32_t log_offset = 0;
@@ -177,6 +179,22 @@ char *tests_cmds_hdlr(struct tests_cmds_pkt *pkt) {
 
                 memcpy(&fb_data, pkt->data, MIN(pkt->data_len, sizeof(fb_data)));
                 adapter_bridge_fb(&fb_data, &bt_adapter.data[device->ids.id]);
+            }
+            break;
+        case TESTS_CMDS_CONSOLE:
+            /* A console's command, as a wired driver's interrupt answers it: the reply, from the
+             * status block as it stands, then the verb run as the system task runs it */
+            if (pkt->data_len >= CONSOLE_CMD_SEND_LEN) {
+                uint8_t reply[CONSOLE_CMD_REPLY_LEN];
+
+                console_cmd_poll();
+                console_cmd_answer(pkt->data, reply);
+                TESTS_CMDS_LOG("\"console_reply\": [");
+                for (uint32_t i = 0; i < CONSOLE_CMD_REPLY_LEN; i++) {
+                    TESTS_CMDS_LOG("%s%d", i ? ", " : "", reply[i]);
+                }
+                TESTS_CMDS_LOG("],\n");
+                console_cmd_poll();
             }
             break;
         default:

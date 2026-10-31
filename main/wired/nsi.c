@@ -20,6 +20,7 @@
 #include "adapter/wired/n64.h"
 #include "adapter/wired/n64_runtime.h"
 #include "adapter/wired/gc.h"
+#include "system/console_cmd.h"
 #include "system/gpio.h"
 #include "system/intr.h"
 #include "nsi.h"
@@ -238,6 +239,16 @@ static void nsi_game_id_cmd_hdlr(uint8_t channel, uint8_t port, uint16_t item) {
         fb_data.data[i] = buf[i];
     }
     adapter_q_fb(&fb_data);
+}
+
+/* BlueRetroForever's own command (system/console_cmd.h), the same on every port in every mode */
+static void n64_console_cmd_hdlr(uint8_t channel, uint16_t item) {
+    uint8_t crc;
+
+    nsi_items_to_bytes(item, buf + 1, CONSOLE_CMD_SEND_LEN - 1);
+    console_cmd_answer(buf, buf + CONSOLE_CMD_SEND_LEN);
+    nsi_bytes_to_items_crc(channel * RMT_MEM_ITEM_NUM, buf + CONSOLE_CMD_SEND_LEN, CONSOLE_CMD_REPLY_LEN, &crc, STOP_BIT_2US);
+    RMT.conf_ch[channel].conf1.tx_start = 1;
 }
 
 /* Both keyboard reads send the console's LEDs: a change goes to the Bluetooth keyboard */
@@ -640,6 +651,10 @@ static unsigned n64_isr(unsigned cause) {
 #endif
                 }
 
+                if (buf[0] == CONSOLE_CMD_ID) {
+                    n64_console_cmd_hdlr(channel, item);
+                    break;
+                }
                 switch (dev_mode) {
                     case DEV_KB:
                         n64_kb_cmd_hdlr(channel, channel, item);

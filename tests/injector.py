@@ -78,6 +78,11 @@ class BlueRetroInjector:
         self.__write(0x0E, self.handle, struct.pack("<BBB", wired_id, fb_type, len(payload)) + payload)
         return self.__read()
 
+    def send_console_cmd(self, verb, arg0=0, arg1=0):
+        ''' A console program's BlueRetroForever command (0x7B), as a wired driver answers it. '''
+        self.__write(0x0F, self.handle, bytes([0x7B, verb, arg0, arg1]))
+        return self.__read()
+
     def send_att_notify(self, att_handle, data):
         ''' An ATT notification from a BLE controller: the handle, then the value as hex. '''
         self.__write(0x0D, self.handle, struct.pack("<H", att_handle) + bytes.fromhex(data))
