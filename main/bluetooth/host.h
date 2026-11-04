@@ -35,6 +35,7 @@ enum {
     BT_DEV_FB_DELAY,
     BT_DEV_CALIB_SET,
     BT_DEV_PPCP_DONE,
+    BT_DEV_LE_SC_REQUIRED,
 };
 
 struct bt_name_type {
@@ -79,6 +80,13 @@ struct bt_dev {
             uint8_t rand[BT_SMP_MAX_ENC_KEY_SIZE];
             uint8_t rrand[BT_SMP_MAX_ENC_KEY_SIZE];
             uint8_t ltk[BT_SMP_MAX_ENC_KEY_SIZE];
+            uint8_t sc_public_key[64];
+            uint8_t sc_peer_public_key[64];
+            uint8_t sc_dhkey[32];
+            uint8_t sc_mackey[16];
+            uint8_t sc_peer_confirm[16];
+            uint8_t sc_peer_dhcheck[16];
+            uint8_t sc_state;
             uint8_t preq[7];
             uint8_t pres[7];
             uint8_t rdist;

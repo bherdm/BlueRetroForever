@@ -1070,7 +1070,20 @@ bool hid_fb_from_generic(struct generic_fb *fb_data, struct bt_data *bt_data) {
             ret = hid_kb_leds_from_generic(fb_data, bt_data);
             break;
         case FB_TYPE_RUMBLE:
-            if (atomic_test_bit(&bt_data->base.flags[PAD], BT_QUIRK_8BITDO_GC)) {
+            if (atomic_test_bit(&bt_data->base.flags[PAD], BT_QUIRK_M64)) {
+                struct generic_rumble *rumble = (struct generic_rumble *)bt_data->base.output;
+                /* M64 haptics report: trigger:4, intensity:3, repeat:3,
+                 * retrigger:10, cutoff:13. Trigger 3 is sustained rumble;
+                 * trigger 2 stops playback. Use binary rumble at full intensity. */
+                uint64_t state = (uint64_t)1000 << 20;
+                state |= fb_data->state ? (4 << 4) | 3 : 2;
+                rumble->report_id = 0x04;
+                rumble->report_size = 5;
+                for (uint32_t i = 0; i < rumble->report_size; i++) {
+                    rumble->state[i] = state >> (i * 8);
+                }
+            }
+            else if (atomic_test_bit(&bt_data->base.flags[PAD], BT_QUIRK_8BITDO_GC)) {
                 struct generic_rumble *rumble = (struct generic_rumble *)bt_data->base.output;
 
                 rumble->report_id = 0xA5;

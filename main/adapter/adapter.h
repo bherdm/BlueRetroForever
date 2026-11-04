@@ -335,6 +335,7 @@ enum {
     BT_QUIRK_OUYA,
     BT_QUIRK_8BITDO_GC,
     BT_QUIRK_8BITDO_GBROS,
+    BT_QUIRK_M64,
 };
 
 /* Wired flags */
